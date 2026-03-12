@@ -64,7 +64,7 @@ class AboutScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Vendor Partner App',
+              'Restaurant Partner',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,

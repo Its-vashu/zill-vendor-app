@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import 'core/services/order_alarm_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/app_logger.dart';
 import 'features/auth/viewmodel/auth_viewmodel.dart';
 import 'features/dashboard/viewmodel/dashboard_viewmodel.dart';
 import 'features/orders/viewmodel/orders_viewmodel.dart';
@@ -122,13 +125,26 @@ void main() async {
   // Check if app was cold-launched from an alarm notification
   _checkAlarmLaunch(navigatorKey);
 
-  runApp(
-    VendorApp(
-      storageService: storageService,
-      apiService: apiService,
-      pushService: pushService,
-      navigatorKey: navigatorKey,
+  // ── Global error boundaries ──────────────────────────────────────────
+  // 1. Catch Flutter framework errors (layout, rendering, gestures)
+  FlutterError.onError = (FlutterErrorDetails details) {
+    AppLogger.e('[FlutterError] ${details.exception}', details.exception, details.stack);
+  };
+
+  // 2. Catch ALL unhandled async/isolate exceptions — prevents grey
+  //    screen of death in production.
+  runZonedGuarded(
+    () => runApp(
+      VendorApp(
+        storageService: storageService,
+        apiService: apiService,
+        pushService: pushService,
+        navigatorKey: navigatorKey,
+      ),
     ),
+    (Object error, StackTrace stack) {
+      AppLogger.e('[Unhandled] $error', error, stack);
+    },
   );
 }
 

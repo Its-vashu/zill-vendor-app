@@ -213,7 +213,7 @@ class _SplashScreenState extends State<SplashScreen>
               FadeTransition(
                 opacity: _taglineFade,
                 child: Text(
-                  'Vendor Partner',
+                  'Restaurant Partner',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,

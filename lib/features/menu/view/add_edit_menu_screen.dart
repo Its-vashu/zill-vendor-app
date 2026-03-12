@@ -865,7 +865,9 @@ class _AddEditMenuScreenState extends State<AddEditMenuScreen> {
   /// Prepend server origin for relative paths from the Django backend.
   static String _resolveUrl(String url) {
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return 'http://localhost:8000$url';
+    const base = String.fromEnvironment('SERVER_ORIGIN',
+        defaultValue: 'https://zill.co.in');
+    return '$base$url';
   }
 
   // ── Variants Section ─────────────────────────────────────────────

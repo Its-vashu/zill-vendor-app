@@ -161,9 +161,9 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
       final body = _asMap(response.data);
       final data = body['data'] as Map<String, dynamic>? ?? body;
 
-      // Server returns ALL session messages — full replace
+      // Server returns ALL session messages — full replace only if more
       final rawMessages = data['messages'] as List<dynamic>? ?? [];
-      _messages = rawMessages.map((e) {
+      final serverMessages = rawMessages.map((e) {
         if (e is Map<String, dynamic>) return e;
         if (e is Map) return Map<String, dynamic>.from(e);
         return null;
@@ -171,13 +171,21 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
           .map(ChatMessage.fromJson)
           .toList();
 
+      // Guard: never lose messages — only replace if server has >= local count
+      if (serverMessages.isNotEmpty) {
+        _messages = serverMessages;
+      }
+
       // Update session status if returned
       if (data['session_status'] is String) {
+        final newStatus = data['session_status'] as String;
         _activeSession = ChatSession(
           sessionId: _activeSession!.sessionId,
-          status: data['session_status'] as String,
+          status: newStatus,
           startedAt: _activeSession!.startedAt,
         );
+        // Stop polling if session ended/escalated
+        if (newStatus != 'active') _stopPolling();
       }
 
       _chatStatus = ChatStatus.active;
@@ -235,9 +243,9 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
       final body = _asMap(response.data);
       final data = body['data'] as Map<String, dynamic>? ?? body;
 
-      // Server returns ALL session messages — full replace
+      // Server returns ALL session messages — full replace only if non-empty
       final rawMessages = data['messages'] as List<dynamic>? ?? [];
-      _messages = rawMessages.map((e) {
+      final serverMessages = rawMessages.map((e) {
         if (e is Map<String, dynamic>) return e;
         if (e is Map) return Map<String, dynamic>.from(e);
         return null;
@@ -245,15 +253,21 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
           .map(ChatMessage.fromJson)
           .toList();
 
+      if (serverMessages.isNotEmpty) {
+        _messages = serverMessages;
+      }
+
       // Backend saves replyId as user message text — replace with label
       _fixAllReplyDisplayTexts();
 
       if (data['session_status'] is String) {
+        final newStatus = data['session_status'] as String;
         _activeSession = ChatSession(
           sessionId: _activeSession!.sessionId,
-          status: data['session_status'] as String,
+          status: newStatus,
           startedAt: _activeSession!.startedAt,
         );
+        if (newStatus != 'active') _stopPolling();
       }
 
       _chatStatus = ChatStatus.active;
@@ -297,15 +311,31 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
       final body = _asMap(response.data);
       final data = body['data'] as Map<String, dynamic>? ?? body;
 
-      // Server returns ALL session messages — full replace
+      // Server returns ALL session messages — full replace only if non-empty
       final rawMessages = data['messages'] as List<dynamic>? ?? [];
-      _messages = rawMessages.map((e) {
+      final serverMessages = rawMessages.map((e) {
         if (e is Map<String, dynamic>) return e;
         if (e is Map) return Map<String, dynamic>.from(e);
         return null;
       }).whereType<Map<String, dynamic>>()
           .map(ChatMessage.fromJson)
           .toList();
+
+      // Guard: never lose messages — only replace if server has data
+      if (serverMessages.isNotEmpty) {
+        _messages = serverMessages;
+      }
+
+      // Update session status if returned
+      if (data['session_status'] is String) {
+        final newStatus = data['session_status'] as String;
+        _activeSession = ChatSession(
+          sessionId: _activeSession!.sessionId,
+          status: newStatus,
+          startedAt: _activeSession!.startedAt,
+        );
+        if (newStatus != 'active') _stopPolling();
+      }
 
       _chatStatus = ChatStatus.active;
       notifyListeners();

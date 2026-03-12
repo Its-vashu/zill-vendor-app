@@ -1307,8 +1307,9 @@ class _ItemImage extends StatelessWidget {
   /// If [imageUrl] is relative (starts with '/'), prepend the server origin.
   static String _resolve(String url) {
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    // Strip '/api' suffix from baseUrl to get the server root
-    const base = 'http://localhost:8000';
+    // Derive server root from the production baseUrl (strip trailing '/api')
+    const base = String.fromEnvironment('SERVER_ORIGIN',
+        defaultValue: 'https://zill.co.in');
     return '$base$url';
   }
 

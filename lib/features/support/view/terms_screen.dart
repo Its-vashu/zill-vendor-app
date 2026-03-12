@@ -91,7 +91,7 @@ class TermsScreen extends StatelessWidget {
               const SizedBox(height: 20),
               const _Section(
                 title: '1. Acceptance of Terms',
-                body: 'By accessing and using the Zill Vendor Partner App, you agree to '
+                body: 'By accessing and using the Zill Restaurant Partner app, you agree to '
                     'be bound by these Terms and Conditions. If you do not agree to these '
                     'terms, please do not use the app.',
               ),

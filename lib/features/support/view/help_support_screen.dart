@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
+import '../../../core/constants/app_strings.dart';
 import '../../../core/services/api_service.dart';
 import 'about_screen.dart';
 import 'chat_screen.dart';
@@ -109,7 +110,7 @@ class HelpSupportScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Zill Vendor App',
+                    AppStrings.appName,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -212,7 +213,7 @@ class _ContactCard extends StatelessWidget {
 
   Future<void> _launchEmail(BuildContext context) async {
     final uri = Uri.parse(
-      'mailto:support@zill.co.in?subject=${Uri.encodeComponent('Zill Vendor App — Help & Support')}',
+      'mailto:support@zill.co.in?subject=${Uri.encodeComponent('Zill Restaurant Partner — Help & Support')}',
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);

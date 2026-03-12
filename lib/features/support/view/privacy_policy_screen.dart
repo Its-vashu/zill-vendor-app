@@ -92,7 +92,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               const _Section(
                 title: '1. Information We Collect',
                 body: 'We collect the following information when you register and use the '
-                    'Zill Vendor App:\n'
+                    'Zill Restaurant Partner:\n'
                     '- Personal information (name, email, phone number)\n'
                     '- Business information (restaurant name, address, FSSAI, GST, PAN)\n'
                     '- Bank account details for payouts\n'

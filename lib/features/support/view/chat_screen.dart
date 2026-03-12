@@ -222,7 +222,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     final msgIndex = vm.messages.length - 1 - index;
                     return _buildMessage(
                       vm.messages[msgIndex],
-                      enableQuickReplies: msgIndex == lastQuickReplyIdx,
+                      enableQuickReplies: vm.isChatActive && msgIndex == lastQuickReplyIdx,
                     );
                   },
                 ),
@@ -255,8 +255,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
 
-              // Input bar
-              if (vm.isChatActive) _buildInputBar(vm),
+              // Input bar or "Chat ended" footer
+              if (vm.isChatActive)
+                _buildInputBar(vm)
+              else if (vm.activeSession != null)
+                _buildChatEndedFooter(vm),
             ],
           );
         },
@@ -293,6 +296,44 @@ class _ChatScreenState extends State<ChatScreen> {
   // ═══════════════════════════════════════════════════════════════════════════
   //  Input bar
   // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildChatEndedFooter(SupportViewModel vm) {
+    final isEscalated = vm.activeSession?.isEscalated ?? false;
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        12 + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.borderLight)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isEscalated ? Icons.support_agent_rounded : Icons.check_circle_rounded,
+            size: 20,
+            color: isEscalated ? AppColors.warning : AppColors.success,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isEscalated
+                  ? 'Chat escalated to support agent. You\'ll be notified when they respond.'
+                  : 'This chat session has ended.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildInputBar(SupportViewModel vm) {
     return Container(

@@ -2,7 +2,7 @@ class AppStrings {
   AppStrings._();
 
   // App
-  static const String appName = 'Vendor App';
+  static const String appName = 'Zill Restaurant Partner';
   static const String appTagline = 'Manage your restaurant on the go';
 
   // Auth

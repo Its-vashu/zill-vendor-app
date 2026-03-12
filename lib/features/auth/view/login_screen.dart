@@ -349,7 +349,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 6),
         Text(
-          'Vendor Partner App',
+          'Restaurant Partner',
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w500,
