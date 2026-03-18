@@ -8,7 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../constants/api_endpoints.dart';
 import '../utils/app_logger.dart';
 import 'api_service.dart';
-import 'order_alarm_service.dart';
+
 import 'storage_service.dart';
 import 'notification_handler.dart';
 
@@ -28,7 +28,7 @@ const AndroidNotificationChannel _highChannel = AndroidNotificationChannel(
   'High Importance Notifications', // name
   description:
       'This channel is used for order alerts and important vendor notifications.',
-  importance: Importance.max,
+  importance: Importance.high,
   playSound: true,
   enableVibration: true,
   showBadge: true,
@@ -267,28 +267,10 @@ class PushNotificationService {
 
     final type = message.data['type'] ?? '';
 
-    // New order → trigger loud alarm via native service (foreground too,
-    // because the native FCM handler may have already started it, but
-    // we also want to navigate to the incoming order screen).
+    // New order → just refresh orders list + show local notification
     if (type == 'new_order' || type == 'vendor_new_order') {
-      AppLogger.i(
-        '[FCM] New order in foreground — triggering alarm + navigation',
-      );
-      final data = message.data;
-      final alarmData = AlarmOrderData(
-        orderId: int.tryParse(data['order_id'] ?? '0') ?? 0,
-        orderNumber: data['order_number'] ?? 'New Order',
-        orderAmount: data['total_amount'] ?? data['order_amount'] ?? '',
-        orderItems: data['items_summary'] ?? data['order_items'] ?? '',
-        customerName: data['customer_name'] ?? data['order_customer'] ?? '',
-      );
-      // Native ZillFirebaseMessagingService already started the alarm,
-      // so we only need to notify Flutter listeners for navigation.
-      // Notify Flutter listeners (IncomingOrderScreen will show)
-      OrderAlarmService.onAlarmOrderReceived?.call(alarmData);
-      // Still refresh orders list
+      AppLogger.i('[FCM] New order received — refreshing orders');
       onRefreshOrders?.call();
-      return; // Skip normal notification — alarm handles it
     }
 
     // Non-order messages: show a heads-up local notification
@@ -328,12 +310,11 @@ class PushNotificationService {
           _highChannel.id,
           _highChannel.name,
           channelDescription: _highChannel.description,
-          importance: Importance.max,
+          importance: Importance.high,
           priority: Priority.high,
           playSound: true,
           enableVibration: true,
           icon: '@mipmap/ic_launcher',
-          // Show as a heads-up notification
           ticker: title,
         ),
         iOS: const DarwinNotificationDetails(
@@ -405,14 +386,18 @@ class PushNotificationService {
     } catch (e) {
       AppLogger.e('[FCM] Error deactivating token on backend', e);
     }
-    // NOTE: Do NOT call _messaging.deleteToken() here.
-    // Deleting the FCM token causes Firebase to generate a completely new token
-    // on next login. The old token becomes permanently invalid, but the new token
-    // may not be ready immediately — causing notifications to silently fail.
-    // Instead, we only deactivate on the backend. On next login, the SAME token
-    // is re-registered and re-activated instantly.
-    AppLogger.i(
-      '[FCM] Logout cleanup complete (token kept locally, deactivated on server)',
-    );
+
+    // Delete the FCM token locally so Firebase generates a fresh one on next
+    // login. This prevents stale-token issues when a session is invalidated
+    // from another device — the old token stays dead on the backend while the
+    // app still holds it, causing notifications to silently fail forever.
+    try {
+      await _messaging.deleteToken();
+      AppLogger.i('[FCM] Local FCM token deleted — fresh token on next login');
+    } catch (e) {
+      AppLogger.e('[FCM] Error deleting local token', e);
+    }
+
+    AppLogger.i('[FCM] Logout cleanup complete');
   }
 }

@@ -182,17 +182,19 @@ class NotificationsViewModel extends ChangeNotifier {
     }
   }
 
-  // ── Mark all as read → clear list (read = done, no need to show) ────────
+  // ── Mark all as read ────────────────────────────────────────────────────
   Future<void> markAllAsRead() async {
-    _notifications = [];
+    // Optimistic: mark all as read in UI
+    _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
     _unreadCount = 0;
-    _totalCount = 0;
     notifyListeners();
 
     try {
       await _apiService.post(ApiEndpoints.notificationsMarkRead, data: {});
     } catch (e) {
       debugPrint('[Notifications] markAllAsRead error: $e');
+      // Re-fetch on failure to restore correct state
+      await fetchNotifications();
     }
   }
 
@@ -224,7 +226,13 @@ class NotificationsViewModel extends ChangeNotifier {
     try {
       final resp = await _apiService.get(ApiEndpoints.notificationsStats);
       final body = resp.data as Map<String, dynamic>;
-      _unreadCount = (body['unread'] as num?)?.toInt() ?? 0;
+      // Backend returns {"stats": {"unread_count": N}}
+      final stats = body['stats'] as Map<String, dynamic>?;
+      _unreadCount =
+          (stats?['unread_count'] as num?)?.toInt() ??
+          (body['unread_count'] as num?)?.toInt() ??
+          (body['unread'] as num?)?.toInt() ??
+          0;
       return _unreadCount;
     } catch (e) {
       debugPrint('[Notifications] fetchUnreadCount error: $e');
@@ -232,22 +240,46 @@ class NotificationsViewModel extends ChangeNotifier {
     }
   }
 
+  // ── Clear read notifications ────────────────────────────────────────────
+  Future<void> clearRead() async {
+    final readIds = _notifications.where((n) => n.isRead).map((n) => n.id).toSet();
+    if (readIds.isEmpty) return;
+
+    // Optimistic removal
+    _notifications = _notifications.where((n) => !n.isRead).toList();
+    _totalCount = (_totalCount - readIds.length).clamp(0, _totalCount);
+    notifyListeners();
+
+    try {
+      await _apiService.delete(
+        ApiEndpoints.notificationsClear,
+        queryParameters: {'type': 'read'},
+      );
+    } catch (e) {
+      debugPrint('[Notifications] clearRead error: $e');
+      await fetchNotifications();
+    }
+  }
+
+  bool get hasReadNotifications => _notifications.any((n) => n.isRead);
+
   // ── Refresh ─────────────────────────────────────────────────────────────
   Future<void> refresh() => fetchNotifications();
 
   // ── Private helpers ─────────────────────────────────────────────────────
   void _parseResponse(Map<String, dynamic> body, {required bool replace}) {
-    final rawList = body['notifications'] as List<dynamic>? ?? [];
+    final rawList = body['notifications'] as List<dynamic>? ??
+        body['results'] as List<dynamic>? ??
+        [];
     final parsed = rawList
-        .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
+        .whereType<Map<String, dynamic>>()
+        .map(AppNotification.fromJson)
         .toList();
 
-    // Only keep unread — read notifications are removed on tap anyway
-    final unreadParsed = parsed.where((n) => !n.isRead).toList();
     if (replace) {
-      _notifications = unreadParsed;
+      _notifications = parsed;
     } else {
-      _notifications = [..._notifications, ...unreadParsed];
+      _notifications = [..._notifications, ...parsed];
     }
 
     _unreadCount = (body['unread_count'] as num?)?.toInt() ?? _unreadCount;

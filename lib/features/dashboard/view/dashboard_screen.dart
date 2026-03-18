@@ -9,6 +9,8 @@ import '../../../shared/widgets/stat_card.dart';
 import '../../../shared/widgets/shimmer_widgets.dart';
 import '../viewmodel/dashboard_viewmodel.dart';
 import '../../home/view/app_shell.dart';
+import '../../orders/view/order_detail_screen.dart';
+import '../../orders/viewmodel/orders_viewmodel.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -124,6 +126,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   if (!vm.isLoading && vm.pendingCount > 0)
                     const SizedBox(height: AppSizes.md),
+
+                  // ── 1b. Live Orders (quick actions) ────────────────
+                  if (!vm.isLoading)
+                    Consumer<OrdersViewModel>(
+                      builder: (context, ordersVm, _) {
+                        final pending = ordersVm.newOrders
+                            .where((o) => o.status == 'pending')
+                            .toList();
+                        final inProgress = [
+                          ...ordersVm.newOrders
+                              .where((o) => o.status == 'confirmed'),
+                          ...ordersVm.preparingOrders,
+                        ];
+                        if (pending.isEmpty && inProgress.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ── New Orders (pending) ──
+                            if (pending.isNotEmpty) ...[
+                              _SectionHeader(
+                                icon: Icons.notifications_active_rounded,
+                                iconColor: AppColors.error,
+                                title: 'New Orders',
+                                count: pending.length,
+                                badgeColor: AppColors.error,
+                              ),
+                              const SizedBox(height: AppSizes.sm),
+                              ...pending.map(
+                                (order) => _LiveOrderCard(
+                                  order: order,
+                                  ordersVm: ordersVm,
+                                ),
+                              ),
+                              const SizedBox(height: AppSizes.md),
+                            ],
+                            // ── In Progress (confirmed + preparing) ──
+                            if (inProgress.isNotEmpty) ...[
+                              _SectionHeader(
+                                icon: Icons.restaurant_rounded,
+                                iconColor: AppColors.orderPreparing,
+                                title: 'In Progress',
+                                count: inProgress.length,
+                                badgeColor: AppColors.orderPreparing,
+                              ),
+                              const SizedBox(height: AppSizes.sm),
+                              ...inProgress.map(
+                                (order) => _LiveOrderCard(
+                                  order: order,
+                                  ordersVm: ordersVm,
+                                ),
+                              ),
+                              const SizedBox(height: AppSizes.md),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
 
                   // ── 2. Quick Stats ──────────────────────────────────
                   Text(
@@ -345,7 +406,7 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
   @override
   Widget build(BuildContext context) {
     final vm = widget.vm;
-    final isOpen = vm.data.isStoreOpen;
+    final isOnline = vm.data.isStoreOpen;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
@@ -355,14 +416,14 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: isOpen
-              ? [const Color(0xFF00B894), const Color(0xFF00A381)]
-              : [const Color(0xFF636E72), const Color(0xFF2D3436)],
+          colors: isOnline
+              ? const [Color(0xFF00B894), Color(0xFF00A381)]
+              : const [Color(0xFF636E72), Color(0xFF2D3436)],
         ),
         borderRadius: BorderRadius.circular(AppSizes.radiusLg),
         boxShadow: [
           BoxShadow(
-            color: (isOpen ? AppColors.success : AppColors.textSecondary)
+            color: (isOnline ? AppColors.success : AppColors.textSecondary)
                 .withValues(alpha: 0.3),
             blurRadius: 16,
             offset: const Offset(0, 6),
@@ -373,7 +434,7 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
         padding: const EdgeInsets.all(AppSizes.lg),
         child: Row(
           children: [
-            // ── Pulsing status dot ────────────────────────────────
+            // ── Pulsing status dot ─────────────────────────
             AnimatedBuilder(
               animation: _pulseAnimation,
               builder: (_, _) => Container(
@@ -382,9 +443,9 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(
-                    alpha: isOpen ? _pulseAnimation.value : 0.5,
+                    alpha: isOnline ? _pulseAnimation.value : 0.5,
                   ),
-                  boxShadow: isOpen
+                  boxShadow: isOnline
                       ? [
                           BoxShadow(
                             color: Colors.white.withValues(
@@ -399,23 +460,27 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
             ),
             const SizedBox(width: AppSizes.md),
 
-            // ── Text content ──────────────────────────────────────
+            // ── Text content ───────────────────────────────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isOpen ? 'Accepting Orders' : 'Currently Offline',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    isOnline ? 'Accepting Orders' : 'Currently Offline',
+                    style:
+                        Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                   ),
                   if (vm.data.storeName.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       vm.data.storeName,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(
                             color: Colors.white.withValues(alpha: 0.85),
                           ),
                     ),
@@ -432,10 +497,9 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
                         const SizedBox(width: 4),
                         Text(
                           '${vm.data.todayOpenTime} – ${vm.data.todayCloseTime}',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                  ),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
                         ),
                       ],
                     ),
@@ -444,31 +508,25 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
               ),
             ),
 
-            // ── Toggle switch ─────────────────────────────────────
-            vm.isToggling
-                ? const SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
-                  )
-                : Transform.scale(
-                    scale: 1.3,
-                    child: Switch(
-                      value: isOpen,
-                      onChanged:
-                          vm.isLoading ? null : (_) => vm.toggleStore(),
-                      activeThumbColor: Colors.white,
-                      activeTrackColor:
-                          Colors.white.withValues(alpha: 0.35),
-                      inactiveThumbColor:
-                          Colors.white.withValues(alpha: 0.9),
-                      inactiveTrackColor:
-                          Colors.white.withValues(alpha: 0.2),
-                    ),
-                  ),
+            // ── Toggle switch or loading spinner ───────────
+            if (vm.isToggling)
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+            else
+              Switch(
+                value: isOnline,
+                onChanged: vm.isLoading ? null : (_) => vm.toggleStore(),
+                activeThumbColor: Colors.white,
+                activeTrackColor: Colors.white.withValues(alpha: 0.4),
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
+              ),
           ],
         ),
       ),
@@ -559,13 +617,435 @@ class _RecentActivityList extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Live Order Card with Quick Actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final int count;
+  final Color badgeColor;
+
+  const _SectionHeader({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.count,
+    required this.badgeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: iconColor),
+        ),
+        const SizedBox(width: 8),
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: badgeColor,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LiveOrderCard extends StatelessWidget {
+  final VendorOrder order;
+  final OrdersViewModel ordersVm;
+  const _LiveOrderCard({required this.order, required this.ordersVm});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = ordersVm.isActionLoading(order.id);
+    final statusColor = _statusColor(order.status);
+    final timeStr = DateFormat('h:mm a').format(order.createdAt);
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrderDetailScreen(order: order, vm: ordersVm),
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+          border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadow,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header: ID + Time ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppSizes.radiusMd),
+                  topRight: Radius.circular(AppSizes.radiusMd),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(_statusIcon(order.status), size: 16, color: statusColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    'ID: ${order.id}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    order.orderNumber,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: statusColor.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    timeStr,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Customer name ──
+                  Row(
+                    children: [
+                      const Icon(Icons.person_outline_rounded,
+                          size: 16, color: AppColors.textSecondary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          order.customerName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: order.paymentStatus == 'paid'
+                              ? AppColors.success.withValues(alpha: 0.12)
+                              : AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          order.paymentStatus == 'paid' ? 'PAID' : 'COD',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: order.paymentStatus == 'paid'
+                                ? AppColors.success
+                                : AppColors.warning,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // ── Items list ──
+                  ...order.items.take(3).map((item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.circle, size: 6,
+                                color: AppColors.textHint),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${item.quantity} x ${item.itemName}',
+                                style: const TextStyle(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '\u20B9${item.subtotal.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                  if (order.items.length > 3)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        '+${order.items.length - 3} more item${order.items.length - 3 == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textHint,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+
+                  // ── Special instructions ──
+                  if (order.instructions.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: AppColors.warning.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline_rounded,
+                              size: 14, color: AppColors.warning),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              order.instructions,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.warning,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 10),
+
+                  // ── Total + Items count ──
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${order.itemsCount} item${order.itemsCount == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          'Total: \u20B9${order.totalAmount.toStringAsFixed(order.totalAmount == order.totalAmount.roundToDouble() ? 0 : 2)}',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── Quick action button ──
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: _buildActionButton(context, isLoading),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(BuildContext context, bool isLoading) {
+    if (isLoading) {
+      return const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.5),
+        ),
+      );
+    }
+
+    switch (order.status) {
+      case 'pending':
+        return Row(
+          children: [
+            Expanded(
+              flex: 1,
+              child: _ActionBtn(
+                label: 'Reject',
+                icon: Icons.close_rounded,
+                color: AppColors.error,
+                outlined: true,
+                onTap: () => ordersVm.rejectOrder(order.id,
+                    reason: 'Rejected from dashboard'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: _ActionBtn(
+                label: 'Accept Order',
+                icon: Icons.check_rounded,
+                color: AppColors.success,
+                onTap: () => ordersVm.acceptOrder(order.id),
+              ),
+            ),
+          ],
+        );
+      case 'confirmed':
+        return _ActionBtn(
+          label: 'Start Preparing',
+          icon: Icons.restaurant_rounded,
+          color: AppColors.orderPreparing,
+          onTap: () => ordersVm.startPreparing(order.id),
+        );
+      case 'preparing':
+        return _ActionBtn(
+          label: 'Mark Food Ready',
+          icon: Icons.check_circle_rounded,
+          color: AppColors.orderReady,
+          onTap: () => ordersVm.markReady(order.id),
+        );
+      default:
+        return _StatusBadge(status: order.status, label: order.status);
+    }
+  }
+}
+
+class _ActionBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool outlined;
+
+  const _ActionBtn({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.outlined = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (outlined) {
+      return OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 16),
+        label: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+}
+
 class _RecentOrderTile extends StatelessWidget {
   final RecentOrder order;
   const _RecentOrderTile({required this.order});
 
+  void _openOrderDetail(BuildContext context) {
+    final ordersVm = context.read<OrdersViewModel>();
+    final fullOrder = ordersVm.findOrderById(order.id);
+    if (fullOrder != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrderDetailScreen(order: fullOrder, vm: ordersVm),
+        ),
+      );
+    } else {
+      // Order not in memory — switch to Orders tab
+      AppShell.switchTab(context, 1);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return InkWell(
+      onTap: () => _openOrderDetail(context),
+      child: Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSizes.md, vertical: AppSizes.sm + 4),
       child: Row(
@@ -632,6 +1112,7 @@ class _RecentOrderTile extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 

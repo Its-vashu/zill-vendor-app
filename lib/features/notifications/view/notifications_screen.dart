@@ -52,11 +52,38 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           actions: [
             Consumer<NotificationsViewModel>(
               builder: (_, vm, _) {
-                if (vm.unreadCount == 0) return const SizedBox.shrink();
-                return IconButton(
-                  icon: const Icon(Icons.done_all_rounded),
-                  tooltip: 'Mark all as read',
-                  onPressed: vm.markAllAsRead,
+                return PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (value) {
+                    if (value == 'mark_all') vm.markAllAsRead();
+                    if (value == 'clear_read') vm.clearRead();
+                  },
+                  itemBuilder: (_) => [
+                    if (vm.unreadCount > 0)
+                      const PopupMenuItem(
+                        value: 'mark_all',
+                        child: Row(
+                          children: [
+                            Icon(Icons.done_all_rounded,
+                                size: 20, color: AppColors.primary),
+                            SizedBox(width: 10),
+                            Text('Mark all as read'),
+                          ],
+                        ),
+                      ),
+                    if (vm.hasReadNotifications)
+                      const PopupMenuItem(
+                        value: 'clear_read',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_sweep_outlined,
+                                size: 20, color: AppColors.error),
+                            SizedBox(width: 10),
+                            Text('Clear read'),
+                          ],
+                        ),
+                      ),
+                  ],
                 );
               },
             ),
@@ -187,9 +214,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         child: _NotificationTile(
                           notification: n,
                           onTap: () {
-                            // Delete notification (read = done, no need to keep)
-                            vm.deleteNotification(n.id);
-                            // Navigate to the linked order if available
+                            if (!n.isRead) {
+                              vm.markAsRead([n.id]);
+                            }
                             if (n.orderId != null) {
                               final pushService =
                                   context.read<PushNotificationService>();
@@ -241,83 +268,101 @@ class _NotificationTile extends StatelessWidget {
     final n = notification;
     final iconData = _iconFor(n.type);
     final iconColor = _colorFor(n.type);
+    final isRead = n.isRead;
 
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: n.isRead ? null : AppColors.infoLight.withValues(alpha: 0.3),
+        color: isRead ? null : AppColors.primary.withValues(alpha: 0.06),
         padding: const EdgeInsets.symmetric(
             horizontal: AppSizes.md, vertical: AppSizes.sm + 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Unread dot ────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.only(top: 6, right: 8),
-              child: Container(
-                width: 8,
-                height: 8,
+        child: Opacity(
+          opacity: isRead ? 0.45 : 1.0,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Unread dot ────────────────────────────────────
+              if (!isRead)
+                Padding(
+                  padding: const EdgeInsets.only(top: 14, right: 6),
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 14),
+
+              // ── Type icon ─────────────────────────────────────
+              Container(
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: n.isRead ? Colors.transparent : AppColors.primary,
+                  color: iconColor.withValues(alpha: isRead ? 0.06 : 0.12),
+                  borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+                ),
+                child: Icon(iconData,
+                    color: isRead ? AppColors.textHint : iconColor, size: 22),
+              ),
+              const SizedBox(width: AppSizes.sm + 4),
+
+              // ── Content ───────────────────────────────────────
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            n.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight:
+                                      isRead ? FontWeight.w400 : FontWeight.w700,
+                                  color: isRead
+                                      ? AppColors.textSecondary
+                                      : AppColors.textPrimary,
+                                ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: AppSizes.sm),
+                        Text(
+                          n.timeAgo.isNotEmpty
+                              ? n.timeAgo
+                              : _timeAgo(n.createdAt),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textHint,
+                                    fontSize: 11,
+                                  ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      n.message,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: isRead
+                                ? AppColors.textHint
+                                : AppColors.textSecondary,
+                          ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
-
-            // ── Type icon ─────────────────────────────────────
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-              ),
-              child: Icon(iconData, color: iconColor, size: 22),
-            ),
-            const SizedBox(width: AppSizes.sm + 4),
-
-            // ── Content ───────────────────────────────────────
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          n.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                fontWeight:
-                                    n.isRead ? FontWeight.w500 : FontWeight.w700,
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: AppSizes.sm),
-                      Text(
-                        n.timeAgo.isNotEmpty ? n.timeAgo : _timeAgo(n.createdAt),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textHint,
-                              fontSize: 11,
-                            ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    n.message,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

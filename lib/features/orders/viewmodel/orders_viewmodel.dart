@@ -102,6 +102,11 @@ class VendorOrder {
   // Real-time ETA fields (may be null until order is accepted)
   final DateTime? estimatedDeliveryTime;
   final int? estimatedPrepTime; // minutes
+  // Recipient info (may differ from customer for gift/proxy orders)
+  final String? recipientName;
+  final String? recipientPhone;
+  // Payment verification
+  final bool isPaymentVerified;
 
   VendorOrder({
     required this.id,
@@ -124,6 +129,9 @@ class VendorOrder {
     this.acceptedByRestaurant = false,
     this.estimatedDeliveryTime,
     this.estimatedPrepTime,
+    this.recipientName,
+    this.recipientPhone,
+    this.isPaymentVerified = false,
   });
 
   factory VendorOrder.fromJson(Map<String, dynamic> json) {
@@ -187,6 +195,9 @@ class VendorOrder {
       acceptedByRestaurant: json['accepted_by_restaurant'] as bool? ?? false,
       estimatedDeliveryTime: parsedEta,
       estimatedPrepTime: (json['estimated_prep_time'] as num?)?.toInt(),
+      recipientName: json['recipient_name'] as String?,
+      recipientPhone: json['recipient_phone'] as String?,
+      isPaymentVerified: json['is_payment_verified'] as bool? ?? false,
     );
   }
 }
@@ -203,6 +214,7 @@ class VendorOrderDetail {
   final double couponDiscount;
   final String cancellationNote;
   final String cancellationReason;
+  final bool isPlatformFundedCoupon;
 
   const VendorOrderDetail({
     required this.order,
@@ -215,6 +227,7 @@ class VendorOrderDetail {
     required this.couponDiscount,
     required this.cancellationNote,
     required this.cancellationReason,
+    this.isPlatformFundedCoupon = false,
   });
 
   factory VendorOrderDetail.fromJson(Map<String, dynamic> json) {
@@ -233,6 +246,7 @@ class VendorOrderDetail {
           double.tryParse((json['coupon_discount'] ?? '0').toString()) ?? 0.0,
       cancellationNote: json['cancellation_note'] as String? ?? '',
       cancellationReason: json['cancellation_reason'] as String? ?? '',
+      isPlatformFundedCoupon: json['is_platform_funded_coupon'] as bool? ?? false,
     );
   }
 }
@@ -242,8 +256,14 @@ enum OrdersStatus { initial, loading, loaded, error }
 
 class OrdersViewModel extends ChangeNotifier {
   final ApiService _api;
+  StreamSubscription<void>? _sessionExpiredSub;
 
-  OrdersViewModel({required ApiService apiService}) : _api = apiService;
+  OrdersViewModel({required ApiService apiService}) : _api = apiService {
+    _sessionExpiredSub = ApiService.onSessionExpired.listen((_) {
+      AppLogger.w('[Orders] Session expired — stopping auto-refresh');
+      stopAutoRefresh();
+    });
+  }
 
   OrdersStatus _status = OrdersStatus.initial;
   String? _error;
@@ -596,6 +616,7 @@ class OrdersViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _autoRefreshTimer?.cancel();
+    _sessionExpiredSub?.cancel();
     super.dispose();
   }
 

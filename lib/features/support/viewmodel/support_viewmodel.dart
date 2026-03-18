@@ -23,9 +23,14 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
   final ApiService _apiService;
   bool _wasPollingSuspended = false;
 
+  StreamSubscription<void>? _sessionExpiredSub;
+
   SupportViewModel({required ApiService apiService})
       : _apiService = apiService {
     WidgetsBinding.instance.addObserver(this);
+    _sessionExpiredSub = ApiService.onSessionExpired.listen((_) {
+      _stopPolling();
+    });
   }
 
   @override
@@ -463,13 +468,21 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
       final session = ChatSession.fromJson(data);
       _pollFailures = 0; // Reset on success
 
-      // Replace local messages if server has more messages
-      if (session.messages.length > _messages.length) {
-        _messages = List<ChatMessage>.from(session.messages);
-        _fixAllReplyDisplayTexts(); // Fix raw reply IDs from server
-        _activeSession = session;
-        _chatError = null; // Clear stale errors on new data
-        notifyListeners();
+      // Full replace: always sync with server truth.
+      // Detects new messages OR replaced messages (e.g. loading → final answer)
+      // by comparing both count and last message ID.
+      if (session.messages.isNotEmpty) {
+        final hasChanges = session.messages.length != _messages.length ||
+            (session.messages.isNotEmpty &&
+                _messages.isNotEmpty &&
+                session.messages.last.id != _messages.last.id);
+        if (hasChanges) {
+          _messages = List<ChatMessage>.from(session.messages);
+          _fixAllReplyDisplayTexts(); // Fix raw reply IDs from server
+          _activeSession = session;
+          _chatError = null; // Clear stale errors on new data
+          notifyListeners();
+        }
       }
       // Stop polling if session ended
       if (!session.isActive) {
@@ -554,10 +567,14 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
         ApiEndpoints.supportTicketDetail(ticketId),
       );
       final body = _asMap(response.data);
-      final data = body['data'] as Map<String, dynamic>? ??
+      final ticketJson = body['data'] as Map<String, dynamic>? ??
           body['ticket'] as Map<String, dynamic>? ??
           body;
-      _ticketDetail = TicketDetail.fromJson(data);
+      // Backend returns messages at root level, not inside 'ticket'
+      if (body['messages'] is List && ticketJson['messages'] == null) {
+        ticketJson['messages'] = body['messages'];
+      }
+      _ticketDetail = TicketDetail.fromJson(ticketJson);
       _ticketDetailStatus = TicketDetailStatus.idle;
     } on DioException catch (e) {
       _ticketError = _parseDioError(e);
@@ -584,7 +601,7 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await _apiService.post(
         ApiEndpoints.supportTicketReply(ticketId),
-        data: {'content': message},
+        data: {'message': message},
       );
       // Refresh ticket detail to get new message
       await fetchTicketDetail(ticketId);
@@ -637,6 +654,7 @@ class SupportViewModel extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _sessionExpiredSub?.cancel();
     _stopPolling();
     super.dispose();
   }

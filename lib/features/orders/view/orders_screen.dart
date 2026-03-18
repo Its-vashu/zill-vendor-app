@@ -546,29 +546,17 @@ class _OrderCard extends StatelessWidget {
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment.center,
                                                   children: [
-                                                    // Qty circle
-                                                    Container(
-                                                      width: 24,
-                                                      height: 24,
-                                                      alignment:
-                                                          Alignment.center,
-                                                      decoration: BoxDecoration(
-                                                        color: AppColors.primary
-                                                            .withAlpha(22),
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                      child: Text(
-                                                        '${item.quantity}',
-                                                        style: const TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          color:
-                                                              AppColors.primary,
-                                                        ),
+                                                    // Qty x Name
+                                                    Text(
+                                                      '${item.quantity} x ',
+                                                      style: const TextStyle(
+                                                        fontSize: 13.5,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: AppColors
+                                                            .textPrimary,
                                                       ),
                                                     ),
-                                                    const SizedBox(width: 8),
                                                     Expanded(
                                                       child: Text(
                                                         item.itemName,

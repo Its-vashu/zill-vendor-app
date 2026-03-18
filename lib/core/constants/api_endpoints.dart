@@ -105,6 +105,7 @@ class ApiEndpoints {
   static const String notificationsMarkRead = '/notifications/mark-read/';
   static const String notificationsStats = '/notifications/stats/';
   static String notificationDelete(String id) => '/notifications/$id/delete/';
+  static const String notificationsClear = '/notifications/clear/';
 
   // Push Notifications — device token management
   static const String registerDevice = '/notifications/devices/register/';

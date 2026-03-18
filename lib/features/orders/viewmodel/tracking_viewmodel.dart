@@ -342,6 +342,7 @@ enum TrackingViewStatus { initial, loading, loaded, error }
 
 class TrackingViewModel extends ChangeNotifier {
   final ApiService _apiService;
+  StreamSubscription<void>? _sessionExpiredSub;
 
   TrackingViewStatus _status = TrackingViewStatus.initial;
   LiveTrackingData? _data;
@@ -353,7 +354,11 @@ class TrackingViewModel extends ChangeNotifier {
   static const _pollInterval = Duration(seconds: 10);
 
   TrackingViewModel({required ApiService apiService})
-      : _apiService = apiService;
+      : _apiService = apiService {
+    _sessionExpiredSub = ApiService.onSessionExpired.listen((_) {
+      stopTracking();
+    });
+  }
 
   // ── Getters ──────────────────────────────────────────────────────────────
   TrackingViewStatus get status => _status;
@@ -460,6 +465,7 @@ class TrackingViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _sessionExpiredSub?.cancel();
     super.dispose();
   }
 

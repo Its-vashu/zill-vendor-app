@@ -14,6 +14,11 @@ class ApiService {
   final StorageService _storageService;
   final GlobalKey<NavigatorState>? _navigatorKey;
 
+  /// Broadcast stream that fires when session is invalidated (401 logout).
+  /// ViewModels should listen to this and stop all polling/timers.
+  static final _sessionExpiredController = StreamController<void>.broadcast();
+  static Stream<void> get onSessionExpired => _sessionExpiredController.stream;
+
   ApiService({
     required StorageService storageService,
     GlobalKey<NavigatorState>? navigatorKey,
@@ -414,6 +419,9 @@ class _AuthInterceptor extends Interceptor {
   Future<void> _clearAndLogout() async {
     if (_isLoggingOut) return;
     _isLoggingOut = true;
+
+    // Notify all ViewModels to kill their timers IMMEDIATELY
+    ApiService._sessionExpiredController.add(null);
 
     await _storageService.clearAll();
 

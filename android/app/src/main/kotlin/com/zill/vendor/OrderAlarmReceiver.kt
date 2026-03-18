@@ -29,10 +29,8 @@ class ZillFirebaseMessagingService : FlutterFirebaseMessagingService() {
 
         Log.i(TAG, "FCM received: type=$type, data=$data")
 
-        if (type == "new_order" || type == "vendor_new_order") {
-            Log.i(TAG, "New order detected — starting alarm service")
-            startAlarmForOrder(data)
-        }
+        // Let Flutter handle all notifications — no native alarm service
+        Log.i(TAG, "FCM message received, delegating to Flutter")
 
         // Delegate to Flutter plugin (currently a no-op, but future-proof)
         super.onMessageReceived(message)

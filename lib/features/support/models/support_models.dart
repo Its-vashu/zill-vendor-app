@@ -390,6 +390,8 @@ class TicketMessage {
   final List<String> attachments;
   final DateTime createdAt;
 
+  final bool isStaff;
+
   const TicketMessage({
     required this.id,
     required this.messageType,
@@ -399,9 +401,13 @@ class TicketMessage {
     this.isInternal = false,
     this.attachments = const [],
     required this.createdAt,
+    this.isStaff = false,
   });
 
-  bool get isVendor => senderRole == 'vendor';
+  /// Vendor messages (right side) — vendor sent this
+  /// Agent/Admin (left side) — support staff sent this
+  bool get isVendor => senderRole == 'vendor' || senderRole == 'customer' || senderRole == 'delivery';
+  bool get isAgent => senderRole == 'agent' || senderRole == 'admin';
   bool get isSystem =>
       senderRole == 'system' ||
       messageType == 'system_log' ||
@@ -414,7 +420,10 @@ class TicketMessage {
       messageType: (json['message_type'] as String?) ?? 'text',
       senderRole: (json['sender_role'] as String?) ?? 'system',
       senderName: (json['sender_name'] as String?) ?? '',
-      content: (json['content'] as String?) ?? '',
+      isStaff: (json['is_staff'] as bool?) ?? false,
+      content: (json['message'] as String?) ??
+          (json['content'] as String?) ??
+          '',
       isInternal: (json['is_internal'] as bool?) ?? false,
       attachments: rawAttachments.map((e) => e.toString()).toList(),
       createdAt: _parseDate(json['created_at']),

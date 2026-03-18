@@ -214,14 +214,27 @@ class _ContentView extends StatelessWidget {
 
           const SliverToBoxAdapter(child: SizedBox(height: AppSizes.md)),
 
+          // ── Time filter chips ──────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSizes.md),
+              child: _TimeFilterChips(
+                selected: vm.filterDays,
+                onChanged: vm.setFilterDays,
+              ),
+            ),
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: AppSizes.sm)),
+
           // ── Section header ────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSizes.md),
               child: _SectionHeader(
                 title: 'Reviews',
-                badge: vm.stats.totalReviews > 0
-                    ? '${vm.stats.totalReviews}'
+                badge: vm.reviews.isNotEmpty
+                    ? '${vm.reviews.length}'
                     : null,
                 badgeHighlight: vm.stats.unrepliedCount > 0
                     ? '${vm.stats.unrepliedCount} pending reply'
@@ -346,14 +359,6 @@ class _RatingSummaryCard extends StatelessWidget {
                   icon: Icons.fastfood_outlined,
                   label: 'Food',
                   value: stats.averageFoodRating,
-                ),
-              ),
-              Container(width: 1, height: 36, color: AppColors.borderLight),
-              Expanded(
-                child: _SubRating(
-                  icon: Icons.delivery_dining_outlined,
-                  label: 'Delivery',
-                  value: stats.averageDeliveryRating,
                 ),
               ),
               if (stats.unrepliedCount > 0) ...[
@@ -537,6 +542,61 @@ class _Chip extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: color,
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Time filter chips
+// ─────────────────────────────────────────────────────────────────────
+class _TimeFilterChips extends StatelessWidget {
+  const _TimeFilterChips({required this.selected, required this.onChanged});
+
+  final int? selected;
+  final ValueChanged<int?> onChanged;
+
+  static const _options = [
+    (7, '7 Days'),
+    (15, '15 Days'),
+    (30, '30 Days'),
+    (90, '3 Months'),
+    (null, 'All'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _options.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final (days, label) = _options[i];
+          final isSelected = selected == days;
+          return GestureDetector(
+            onTap: () => onChanged(days),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary : AppColors.surface,
+                borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.border,
+                ),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

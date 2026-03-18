@@ -298,26 +298,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                             padding: const EdgeInsets.only(bottom: 4),
                             child: Row(
                               children: [
-                                Container(
-                                  width: 22,
-                                  height: 22,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary,
-                                    borderRadius: BorderRadius.circular(
-                                      AppSizes.radiusSm,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '${it.quantity}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                Text(
+                                  '${it.quantity} x ',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     it.itemName,
@@ -922,67 +910,124 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
   // ── Customer section ──────────────────────────────────────────────────────
 
   Widget _buildCustomerSection() {
+    // Determine if there's a different recipient
+    final hasRecipient = _order.recipientName != null &&
+        _order.recipientName!.isNotEmpty &&
+        _order.recipientName != _order.customerName;
+    final callPhone = hasRecipient && _order.recipientPhone != null && _order.recipientPhone!.isNotEmpty
+        ? _order.recipientPhone!
+        : _order.customerPhone;
+
     return _DetailSection(
       icon: Icons.person_outline_rounded,
       title: 'Customer',
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _order.customerName,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _order.customerName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (_order.customerPhone.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        _order.customerPhone,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                if (_order.customerPhone.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    _order.customerPhone,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
+              ),
+              if (callPhone.isNotEmpty) ...[
+                _ActionIconBtn(
+                  icon: Icons.phone,
+                  color: AppColors.success,
+                  bgColor: AppColors.successLight,
+                  tooltip: hasRecipient ? 'Call recipient' : 'Call customer',
+                  onTap: () async {
+                    final uri = Uri.parse('tel:$callPhone');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    } else {
+                      Clipboard.setData(ClipboardData(text: callPhone));
+                      if (mounted) {
+                        _showSnack(
+                          'Phone copied (dial not supported)',
+                          success: true,
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(width: 8),
+                _ActionIconBtn(
+                  icon: Icons.copy_rounded,
+                  color: AppColors.textSecondary,
+                  bgColor: AppColors.border.withAlpha(90),
+                  tooltip: 'Copy number',
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: callPhone));
+                    _showSnack('Phone number copied', success: true);
+                  },
+                ),
+              ],
+            ],
+          ),
+          // Recipient info (if different from customer)
+          if (hasRecipient) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4FF),
+                borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+                border: Border.all(color: const Color(0xFFB8D0FF)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.card_giftcard_rounded, size: 16, color: Color(0xFF3366CC)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Deliver to Recipient',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF3366CC),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_order.recipientName}'
+                          '${_order.recipientPhone != null && _order.recipientPhone!.isNotEmpty ? '  •  ${_order.recipientPhone}' : ''}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ],
-            ),
-          ),
-          if (_order.customerPhone.isNotEmpty) ...[
-            _ActionIconBtn(
-              icon: Icons.phone,
-              color: AppColors.success,
-              bgColor: AppColors.successLight,
-              tooltip: 'Call customer',
-              onTap: () async {
-                final uri = Uri.parse('tel:${_order.customerPhone}');
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri);
-                } else {
-                  Clipboard.setData(ClipboardData(text: _order.customerPhone));
-                  if (mounted) {
-                    _showSnack(
-                      'Phone copied (dial not supported)',
-                      success: true,
-                    );
-                  }
-                }
-              },
-            ),
-            const SizedBox(width: 8),
-            _ActionIconBtn(
-              icon: Icons.copy_rounded,
-              color: AppColors.textSecondary,
-              bgColor: AppColors.border.withAlpha(90),
-              tooltip: 'Copy number',
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: _order.customerPhone));
-                _showSnack('Phone number copied', success: true);
-              },
+              ),
             ),
           ],
         ],
@@ -1142,6 +1187,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                         : AppColors.error,
                   ),
                 ),
+                // Payment verified badge
+                if (_order.isPaymentVerified) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.verified, size: 14, color: AppColors.success),
+                ],
               ],
             ),
           ),
@@ -1183,25 +1233,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Quantity circle
-            Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-              ),
-              child: Text(
-                '${item.quantity}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
+            // Quantity x
+            Text(
+              '${item.quantity} x ',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1276,7 +1316,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
         if (item.specialInstructions.isNotEmpty) ...[
           const SizedBox(height: 6),
           Padding(
-            padding: const EdgeInsets.only(left: 38),
+            padding: const EdgeInsets.only(left: 28),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1301,7 +1341,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
         if (item.selectedAddons.isNotEmpty) ...[
           const SizedBox(height: 4),
           Padding(
-            padding: const EdgeInsets.only(left: 38),
+            padding: const EdgeInsets.only(left: 28),
             child: Text(
               '${_currFmt.format(item.unitPrice)} × ${item.quantity}'
               '${item.addonsPrice > 0 ? ' + ${_currFmt.format(item.addonsPrice)} add-ons' : ''}',
@@ -1357,6 +1397,38 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
               currFmt: _currFmt,
               isDiscount: true,
             ),
+            if (detail.isPlatformFundedCoupon)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFFA5D6A7)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified_outlined, size: 12, color: Color(0xFF2E7D32)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Platform Funded',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
           const SizedBox(height: 8),
           const Divider(height: 1, color: AppColors.borderLight),
@@ -1451,7 +1523,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Awaiting Assignment',
+                      'Not Assigned Yet',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -1746,7 +1818,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
           if (_order.estimatedDeliveryTime != null)
             _EtaBadge(
               icon: Icons.delivery_dining,
-              label: 'ETA',
+              label: 'Expected Delivery',
               value: DateFormat(
                 'hh:mm a',
               ).format(_order.estimatedDeliveryTime!.toLocal()),
@@ -3010,7 +3082,7 @@ class _TrackingSheetState extends State<_TrackingSheet>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  pickupDone ? 'Picked Up' : 'Pickup ETA',
+                  pickupDone ? 'Picked Up' : 'Pickup By',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -3083,7 +3155,7 @@ class _TrackingSheetState extends State<_TrackingSheet>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  ts?.isDelivered == true ? 'Delivered' : 'Delivery ETA',
+                  ts?.isDelivered == true ? 'Delivered' : 'Delivery By',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,

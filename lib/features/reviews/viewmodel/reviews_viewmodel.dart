@@ -145,6 +145,9 @@ class ReviewsViewModel extends ChangeNotifier {
   List<VendorReview> _reviews = [];
   String? _errorMessage;
 
+  /// Days filter: null = all, 7 = last 7 days, etc.
+  int? _filterDays = 7;
+
   /// Map of review id → bool; true = POST in flight for that review.
   final Map<int, bool> _submitting = {};
 
@@ -154,9 +157,28 @@ class ReviewsViewModel extends ChangeNotifier {
   // ── Getters ────────────────────────────────────────────────────────
   ReviewsStatus get status => _status;
   ReviewStats get stats => _stats;
-  List<VendorReview> get reviews => List.unmodifiable(_reviews);
+  int? get filterDays => _filterDays;
+  List<VendorReview> get reviews {
+    if (_filterDays == null) return List.unmodifiable(_reviews);
+    final cutoff = DateTime.now().subtract(Duration(days: _filterDays!));
+    return List.unmodifiable(
+      _reviews.where((r) {
+        try {
+          final dt = DateTime.parse(r.createdAt);
+          return dt.isAfter(cutoff);
+        } catch (_) {
+          return true;
+        }
+      }).toList(),
+    );
+  }
   String? get errorMessage => _errorMessage;
   bool get hasData => _reviews.isNotEmpty || _status == ReviewsStatus.idle;
+
+  void setFilterDays(int? days) {
+    _filterDays = days;
+    notifyListeners();
+  }
 
   bool isSubmitting(int reviewId) => _submitting[reviewId] ?? false;
   String? replyError(int reviewId) => _replyErrors[reviewId];
