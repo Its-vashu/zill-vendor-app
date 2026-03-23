@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'dart:async';
 import 'dart:convert';
 
@@ -282,17 +286,9 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (_isLoggingOut) {
-      handler.reject(
-        DioException(
-          requestOptions: options,
-          type: DioExceptionType.cancel,
-          error: 'Session expired — logging out',
-        ),
-      );
-      return;
-    }
-
+    // Public endpoints (login, register, OTP, password reset) must ALWAYS
+    // pass through — even when _isLoggingOut is true after a 401 session
+    // expiry.  Without this bypass, the user cannot log back in.
     final noAuthPaths = [
       ApiEndpoints.login,
       ApiEndpoints.register,
@@ -307,6 +303,19 @@ class _AuthInterceptor extends Interceptor {
     final needsAuth = !noAuthPaths.any((p) => options.path.contains(p));
     if (!needsAuth) {
       handler.next(options);
+      return;
+    }
+
+    // Block all AUTHENTICATED requests while logging out — but public
+    // endpoints above have already been allowed through.
+    if (_isLoggingOut) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          type: DioExceptionType.cancel,
+          error: 'Session expired — logging out',
+        ),
+      );
       return;
     }
 

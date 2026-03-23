@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/routing/app_router.dart';
 import '../../auth/viewmodel/auth_viewmodel.dart';
 import 'package:provider/provider.dart';
 
@@ -56,7 +57,7 @@ class LogoutButton extends StatelessWidget {
     if (confirm == true && context.mounted) {
       await context.read<AuthViewModel>().logout();
       if (context.mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        Navigator.of(context).pushReplacementNamed(AppRouter.login);
       }
     }
   }

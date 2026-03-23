@@ -371,6 +371,8 @@ class _AvatarButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
+            dismissDirection: DismissDirection.up,
           ));
       } catch (_) {
         // Widget removed from tree during async — safe to ignore

@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -13,6 +17,7 @@ import 'core/services/api_service.dart';
 import 'core/services/order_alarm_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/storage_service.dart';
+import 'core/services/websocket_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/app_logger.dart';
 import 'features/auth/viewmodel/auth_viewmodel.dart';
@@ -118,6 +123,8 @@ void main() {
         storageService: storageService,
       );
 
+      final wsService = WebSocketService(storageService: storageService);
+
       // Initialize the order alarm method channel bridge
       OrderAlarmService.init();
 
@@ -137,6 +144,7 @@ void main() {
           storageService: storageService,
           apiService: apiService,
           pushService: pushService,
+          wsService: wsService,
           navigatorKey: navigatorKey,
         ),
       );
@@ -165,6 +173,7 @@ class VendorApp extends StatelessWidget {
   final StorageService storageService;
   final ApiService apiService;
   final PushNotificationService pushService;
+  final WebSocketService wsService;
   final GlobalKey<NavigatorState> navigatorKey;
 
   const VendorApp({
@@ -172,6 +181,7 @@ class VendorApp extends StatelessWidget {
     required this.storageService,
     required this.apiService,
     required this.pushService,
+    required this.wsService,
     required this.navigatorKey,
   });
 
@@ -183,12 +193,15 @@ class VendorApp extends StatelessWidget {
         Provider<ApiService>.value(value: apiService),
         // PushNotificationService — accessible anywhere for wiring callbacks
         Provider<PushNotificationService>.value(value: pushService),
+        // WebSocketService — real-time order updates & notifications
+        Provider<WebSocketService>.value(value: wsService),
         // Auth ViewModel
         ChangeNotifierProvider(
           create: (_) => AuthViewModel(
             apiService: apiService,
             storageService: storageService,
             pushService: pushService,
+            wsService: wsService,
           ),
         ),
         // Dashboard ViewModel

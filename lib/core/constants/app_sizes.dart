@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 class AppSizes {
   AppSizes._();
 

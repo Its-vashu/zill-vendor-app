@@ -1,9 +1,14 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/push_notification_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/websocket_service.dart';
 import '../../../core/utils/app_logger.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
@@ -12,6 +17,7 @@ class AuthViewModel extends ChangeNotifier {
   final ApiService _apiService;
   final StorageService _storageService;
   final PushNotificationService _pushService;
+  final WebSocketService _wsService;
 
   AuthStatus _status = AuthStatus.initial;
   String? _errorMessage;
@@ -21,9 +27,11 @@ class AuthViewModel extends ChangeNotifier {
     required ApiService apiService,
     required StorageService storageService,
     required PushNotificationService pushService,
+    required WebSocketService wsService,
   }) : _apiService = apiService,
        _storageService = storageService,
-       _pushService = pushService;
+       _pushService = pushService,
+       _wsService = wsService;
 
   // Getters
   AuthStatus get status => _status;
@@ -162,6 +170,8 @@ class AuthViewModel extends ChangeNotifier {
     } catch (_) {
       // Even if the API call fails, clear local storage
     } finally {
+      // Disconnect all WebSocket connections immediately
+      _wsService.disconnectAll();
       // Block any auto-refresh timer requests that fire during cleanup so they
       // don't trigger a spurious _clearAndLogout() while the user is on login.
       _apiService.signalLoggingOut();

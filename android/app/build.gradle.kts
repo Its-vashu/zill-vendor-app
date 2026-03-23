@@ -60,7 +60,8 @@ android {
         val variant = this
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "Zill-Vendor-${variant.versionName}.apk"
+            val abi = output.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
+            output.outputFileName = "Zill-Vendor-${variant.versionName}-${abi}.apk"
         }
     }
 }

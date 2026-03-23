@@ -38,23 +38,22 @@ class _BankAccountView extends StatefulWidget {
 
 class _BankAccountViewState extends State<_BankAccountView> {
   bool _isEditing = false;
+  BankAccountViewModel? _vm;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final vm = context.read<BankAccountViewModel>();
-      vm.addListener(_onVmChange);
-      vm.fetchBankAccount();
+      _vm = context.read<BankAccountViewModel>();
+      _vm!.addListener(_onVmChange);
+      _vm!.fetchBankAccount();
     });
   }
 
   @override
   void dispose() {
-    try {
-      context.read<BankAccountViewModel>().removeListener(_onVmChange);
-    } catch (_) {}
+    _vm?.removeListener(_onVmChange);
     super.dispose();
   }
 

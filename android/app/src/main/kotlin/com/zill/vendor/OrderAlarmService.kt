@@ -146,7 +146,7 @@ class OrderAlarmService : Service() {
         }.ifEmpty { "Tap to view order details" }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("New Order! #$orderNumber")
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))

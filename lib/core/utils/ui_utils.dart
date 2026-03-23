@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
@@ -14,8 +18,9 @@ class UIUtils {
     required String message,
     bool isError = false,
     IconData? icon,
-    Duration duration = const Duration(seconds: 2),
+    Duration duration = const Duration(seconds: 4),
   }) {
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
@@ -44,6 +49,7 @@ class UIUtils {
           ),
           margin: const EdgeInsets.all(16),
           duration: duration,
+          dismissDirection: DismissDirection.up,
         ),
       );
   }

@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'dart:async';
 import 'dart:io';
 
@@ -140,7 +144,7 @@ class PushNotificationService {
 
   // ── Local Notifications Setup ──────────────────────────────────────
   Future<void> _initLocalNotifications() async {
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@drawable/ic_notification');
     const darwinInit = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -314,7 +318,7 @@ class PushNotificationService {
           priority: Priority.high,
           playSound: true,
           enableVibration: true,
-          icon: '@mipmap/ic_launcher',
+          icon: '@drawable/ic_notification',
           ticker: title,
         ),
         iOS: const DarwinNotificationDetails(

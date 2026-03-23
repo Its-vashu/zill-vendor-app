@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/utils/app_logger.dart';
 import '../viewmodel/auth_viewmodel.dart';
 
@@ -185,7 +186,7 @@ class _OtpLoginSheetState extends State<_OtpLoginSheet> {
     // + login screen) in a single atomic operation, avoiding the race
     // condition where pop() invalidates the context before the second
     // Navigator call can execute.
-    Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+    Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.home, (route) => false);
   }
 
   @override

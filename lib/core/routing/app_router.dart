@@ -50,7 +50,8 @@ class AppRouter {
       case chatSupport:
         return _fadeRoute(const ChatScreen(), settings);
       case ticketDetail:
-        final args = settings.arguments as Map<String, dynamic>;
+        final args = settings.arguments as Map<String, dynamic>?;
+        if (args == null) return _fadeRoute(const SizedBox.shrink(), settings);
         return _fadeRoute(
           TicketDetailScreen(
             ticketId: args['ticketId'] as int,
@@ -63,7 +64,8 @@ class AppRouter {
       case addonGroups:
         return _fadeRoute(const AddonGroupsScreen(), settings);
       case incomingOrder:
-        final orderData = settings.arguments as AlarmOrderData;
+        final orderData = settings.arguments as AlarmOrderData?;
+        if (orderData == null) return _fadeRoute(const SizedBox.shrink(), settings);
         return _fadeRoute(
           IncomingOrderScreen(orderData: orderData),
           settings,

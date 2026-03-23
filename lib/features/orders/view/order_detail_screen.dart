@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 // lib/features/orders/view/order_detail_screen.dart
 // Full-page Order Detail Screen for Vendor App
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/services/websocket_service.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
@@ -57,6 +62,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
 
   // Tracking VM — fetches rider details for active delivery orders
   TrackingViewModel? _trackingVm;
+  WebSocketService? _wsService; // cached for dispose
+  int? _trackingOrderId; // WS connection key for cleanup
 
   // Animation controller for pulsing NEW badge on pending orders
   late AnimationController _pulseCtrl;
@@ -83,8 +90,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     _prepTimeController.dispose();
     _rejectReasonController.dispose();
     _pulseCtrl.dispose();
+    _trackingVm?.removeListener(_onTrackingUpdate);
     _trackingVm?.stopTracking();
     _trackingVm?.dispose();
+    if (_trackingOrderId != null) {
+      _wsService?.disconnectOrderTracking(_trackingOrderId!);
+    }
     super.dispose();
   }
 
@@ -94,6 +105,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
       _trackingVm = TrackingViewModel(apiService: context.read<ApiService>());
       _trackingVm!.addListener(_onTrackingUpdate);
       _trackingVm!.startTracking(_order.id);
+      // Wire WebSocket for real-time tracking
+      _trackingOrderId = _order.id;
+      _wsService = context.read<WebSocketService>();
+      _wsService!.connectOrderTracking(_order.id);
+      _trackingVm!.listenToWebSocket(_wsService!.onOrderTracking);
     }
   }
 
@@ -2608,14 +2624,19 @@ class _TrackingSheet extends StatefulWidget {
 class _TrackingSheetState extends State<_TrackingSheet>
     with SingleTickerProviderStateMixin {
   late final TrackingViewModel _vm;
+  late final WebSocketService _wsService;
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
+    _wsService = context.read<WebSocketService>();
     _vm = TrackingViewModel(apiService: context.read<ApiService>());
     _vm.startTracking(widget.orderId);
+    // Wire WebSocket for real-time tracking updates
+    _wsService.connectOrderTracking(widget.orderId);
+    _vm.listenToWebSocket(_wsService.onOrderTracking);
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -2631,6 +2652,7 @@ class _TrackingSheetState extends State<_TrackingSheet>
     _pulseCtrl.dispose();
     _vm.stopTracking();
     _vm.dispose();
+    _wsService.disconnectOrderTracking(widget.orderId);
     super.dispose();
   }
 

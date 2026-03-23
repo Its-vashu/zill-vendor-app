@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 
@@ -78,12 +79,15 @@ class AboutScreen extends StatelessWidget {
                 color: AppColors.primary.withAlpha(15),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Text(
-                'Version 1.0.0',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+              child: FutureBuilder<PackageInfo>(
+                future: PackageInfo.fromPlatform(),
+                builder: (_, snap) => Text(
+                  snap.hasData ? 'Version ${snap.data!.version}' : '',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ),

@@ -343,6 +343,7 @@ enum TrackingViewStatus { initial, loading, loaded, error }
 class TrackingViewModel extends ChangeNotifier {
   final ApiService _apiService;
   StreamSubscription<void>? _sessionExpiredSub;
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
 
   TrackingViewStatus _status = TrackingViewStatus.initial;
   LiveTrackingData? _data;
@@ -357,6 +358,52 @@ class TrackingViewModel extends ChangeNotifier {
       : _apiService = apiService {
     _sessionExpiredSub = ApiService.onSessionExpired.listen((_) {
       stopTracking();
+    });
+  }
+
+  // ── WebSocket integration ──────────────────────────────────────────
+  /// Listen to the order tracking WS stream. On status/location updates
+  /// for the active order, immediately refresh tracking data.
+  void listenToWebSocket(Stream<Map<String, dynamic>> wsStream) {
+    _wsSub?.cancel();
+    _wsSub = wsStream.listen((data) {
+      final type = data['type'] as String? ?? '';
+      if (type == 'status_update') {
+        AppLogger.i('[Tracking] WS status update — refreshing');
+        if (_activeOrderId != null) _fetchTracking(_activeOrderId!);
+      } else if (type == 'location_update' && _data != null) {
+        // Hot-patch rider location without full re-fetch
+        final lat = (data['latitude'] as num?)?.toDouble();
+        final lng = (data['longitude'] as num?)?.toDouble();
+        if (lat != null && lng != null && _data!.hasPartner) {
+          final updatedLoc = TrackingLocation(
+            latitude: lat,
+            longitude: lng,
+            updatedAt: DateTime.now(),
+          );
+          final partner = _data!.deliveryPartner!;
+          _data = LiveTrackingData(
+            orderInfo: _data!.orderInfo,
+            deliveryPartner: TrackingPartner(
+              id: partner.id,
+              name: partner.name,
+              phone: partner.phone,
+              vehicleType: partner.vehicleType,
+              vehicleNumber: partner.vehicleNumber,
+              rating: partner.rating,
+              totalDeliveries: partner.totalDeliveries,
+              profilePhoto: partner.profilePhoto,
+              currentLocation: updatedLoc,
+            ),
+            trackingStatus: _data!.trackingStatus,
+            eta: _data!.eta,
+            timeline: _data!.timeline,
+            locations: _data!.locations,
+            lastUpdated: DateTime.now(),
+          );
+          notifyListeners();
+        }
+      }
     });
   }
 
@@ -466,6 +513,7 @@ class TrackingViewModel extends ChangeNotifier {
   void dispose() {
     _pollTimer?.cancel();
     _sessionExpiredSub?.cancel();
+    _wsSub?.cancel();
     super.dispose();
   }
 

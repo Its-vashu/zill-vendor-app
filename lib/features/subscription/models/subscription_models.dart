@@ -15,6 +15,7 @@ class SubscriptionPlan {
   final String analyticsAccess; // basic, advanced, premium
   final int trialDays;
   final int sortOrder;
+  final bool isRecommended;
 
   // Monthly pricing (always present)
   final double monthlyBase;
@@ -41,6 +42,7 @@ class SubscriptionPlan {
     this.analyticsAccess = 'basic',
     this.trialDays = 0,
     this.sortOrder = 0,
+    this.isRecommended = false,
     required this.monthlyBase,
     this.monthlyGst = 0,
     required this.monthlyTotal,
@@ -72,6 +74,7 @@ class SubscriptionPlan {
       analyticsAccess: json['analytics_access'] as String? ?? 'basic',
       trialDays: (json['trial_days'] as num?)?.toInt() ?? 0,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      isRecommended: json['is_recommended'] as bool? ?? false,
       monthlyBase: _toDouble(monthly['base']),
       monthlyGst: _toDouble(monthly['gst']),
       monthlyTotal: _toDouble(monthly['total']),

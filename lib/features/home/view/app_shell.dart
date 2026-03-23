@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/push_notification_service.dart';
+import '../../../core/services/websocket_service.dart';
 import '../../dashboard/viewmodel/dashboard_viewmodel.dart';
 import '../../dashboard/view/dashboard_screen.dart';
 import '../../orders/viewmodel/orders_viewmodel.dart';
@@ -27,12 +29,22 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
+  final List<int> _tabHistory = [0];
   List<Widget>? _screens;
 
   void _switchTab(int index) {
     if (index >= 0 && index < (_screens?.length ?? 5)) {
-      setState(() => _currentIndex = index);
+      _navigateToTab(index);
     }
+  }
+
+  void _navigateToTab(int index) {
+    if (_currentIndex == index) return;
+    setState(() {
+      _currentIndex = index;
+      _tabHistory.remove(index);
+      _tabHistory.add(index);
+    });
   }
 
   @override
@@ -50,10 +62,15 @@ class _AppShellState extends State<AppShell> {
         ordersVm.fetchOrders();
       };
 
+      // Connect WebSocket for real-time order updates
+      final wsService = context.read<WebSocketService>();
+      wsService.connectNotifications();
+      ordersVm.listenToWebSocket(wsService.onNotification);
+
       // Deep-link: notification tap → Orders tab + order detail
       pushService.onNavigateToOrder = (orderId) {
         // Switch to Orders tab
-        setState(() => _currentIndex = 1);
+        _navigateToTab(1);
         // Refresh and then navigate to the order detail
         ordersVm.fetchOrders().then((_) {
           if (!mounted) return;
@@ -88,7 +105,42 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Go back through tab history
+        if (_tabHistory.length > 1) {
+          setState(() {
+            _tabHistory.removeLast();
+            _currentIndex = _tabHistory.last;
+          });
+          return;
+        }
+        // At root (Dashboard) — show exit confirmation
+        showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Exit App?'),
+            content: const Text('Are you sure you want to exit?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Yes'),
+              ),
+            ],
+          ),
+        ).then((exit) {
+          if (exit == true) {
+            SystemNavigator.pop();
+          }
+        });
+      },
+      child: Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens!),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -103,7 +155,7 @@ class _AppShellState extends State<AppShell> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: _navigateToTab,
           type: BottomNavigationBarType.fixed,
           items: const [
             BottomNavigationBarItem(
@@ -134,6 +186,7 @@ class _AppShellState extends State<AppShell> {
           ],
         ),
       ),
+    ),
     );
   }
 }

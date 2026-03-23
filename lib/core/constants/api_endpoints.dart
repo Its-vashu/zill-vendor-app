@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 class ApiEndpoints {
   ApiEndpoints._();
 
@@ -156,4 +160,14 @@ class ApiEndpoints {
   static const String mySubscription = '/vendors/subscription/my/';
   static const String cancelSubscription = '/vendors/subscription/cancel/';
   static const String payAdvance = '/vendors/subscription/pay-advance/';
+
+  // ── WebSocket ─────────────────────────────────────────────────────
+  static const String wsBaseUrl = 'wss://zill.co.in';
+  //    static const String wsBaseUrl = 'ws://localhost:8000';
+
+  /// Real-time notifications (new orders, cancellations, etc.)
+  static const String wsNotifications = '/ws/notifications/';
+
+  /// Live order tracking (status + rider GPS)
+  static String wsOrderTrack(int orderId) => '/ws/orders/$orderId/track/';
 }

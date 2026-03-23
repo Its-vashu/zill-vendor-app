@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/websocket_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../viewmodel/orders_viewmodel.dart';
 import '../viewmodel/tracking_viewmodel.dart';
@@ -1852,49 +1857,23 @@ class _ActionButtonsState extends State<_ActionButtons> {
                         if (order.items.isNotEmpty)
                           ...order.items.map(
                             (item) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.only(bottom: 6),
                               child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  // Quantity badge — prominent, easy to spot
-                                  Container(
-                                    constraints: const BoxConstraints(minWidth: 32),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      '×${item.quantity}',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      item.itemName,
+                                      '${item.quantity} x ${item.itemName}',
                                       style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
                                         color: AppColors.textPrimary,
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
                                   Text(
                                     currFmt.format(item.subtotal),
                                     style: const TextStyle(
                                       fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
+                                      color: AppColors.textSecondary,
                                     ),
                                   ),
                                 ],
@@ -2819,14 +2798,19 @@ class _TrackingSheet extends StatefulWidget {
 class _TrackingSheetState extends State<_TrackingSheet>
     with SingleTickerProviderStateMixin {
   late final TrackingViewModel _vm;
+  late final WebSocketService _wsService;
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
+    _wsService = context.read<WebSocketService>();
     _vm = TrackingViewModel(apiService: context.read<ApiService>());
     _vm.startTracking(widget.orderId);
+    // Wire WebSocket for real-time tracking updates
+    _wsService.connectOrderTracking(widget.orderId);
+    _vm.listenToWebSocket(_wsService.onOrderTracking);
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -2841,6 +2825,7 @@ class _TrackingSheetState extends State<_TrackingSheet>
     _pulseCtrl.dispose();
     _vm.stopTracking();
     _vm.dispose();
+    _wsService.disconnectOrderTracking(widget.orderId);
     super.dispose();
   }
 

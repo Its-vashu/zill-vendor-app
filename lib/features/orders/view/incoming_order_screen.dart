@@ -100,6 +100,8 @@ class _IncomingOrderScreenState extends State<IncomingOrderScreen>
       scaffold.showSnackBar(SnackBar(
         content: const Text('Failed to accept order. Please try again.'),
         backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 4),
+        dismissDirection: DismissDirection.up,
       ));
     }
   }
@@ -136,6 +138,8 @@ class _IncomingOrderScreenState extends State<IncomingOrderScreen>
       scaffold.showSnackBar(SnackBar(
         content: const Text('Failed to reject order. Please try again.'),
         backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 4),
+        dismissDirection: DismissDirection.up,
       ));
     }
   }

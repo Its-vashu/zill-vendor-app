@@ -1,8 +1,13 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/utils/app_logger.dart';
 import '../viewmodel/auth_viewmodel.dart';
 import 'forgot_password_sheet.dart';
@@ -136,13 +141,8 @@ class _LoginScreenState extends State<LoginScreen>
             borderRadius: BorderRadius.circular(12),
           ),
           margin: const EdgeInsets.all(16),
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'Dismiss',
-            textColor: Colors.white,
-            onPressed: () =>
-                ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar(),
-          ),
+          duration: const Duration(seconds: 5),
+          dismissDirection: DismissDirection.up,
         ),
       );
   }
@@ -169,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen>
         _successCtrl.forward();
         await Future.delayed(const Duration(milliseconds: 1400));
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacementNamed(AppRouter.home);
       } else {
         _showSnackWithMessenger(
           messenger,
@@ -218,12 +218,8 @@ class _LoginScreenState extends State<LoginScreen>
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'Dismiss',
-            textColor: Colors.white,
-            onPressed: () => messenger.clearSnackBars(),
-          ),
+          duration: const Duration(seconds: 5),
+          dismissDirection: DismissDirection.up,
         ));
     } catch (_) {}
   }
@@ -408,6 +404,9 @@ class _LoginScreenState extends State<LoginScreen>
               prefixIcon: Icons.mail_outline_rounded,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               onEditingComplete: () =>
                   FocusScope.of(context).requestFocus(_passwordFocus),
               validator: (v) => (v == null || v.trim().isEmpty)
@@ -649,6 +648,7 @@ class _ZillField extends StatelessWidget {
     this.obscureText = false,
     this.suffixIcon,
     this.validator,
+    this.inputFormatters,
   });
 
   final String label;
@@ -662,6 +662,7 @@ class _ZillField extends StatelessWidget {
   final bool obscureText;
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -685,6 +686,7 @@ class _ZillField extends StatelessWidget {
           onEditingComplete: onEditingComplete,
           obscureText: obscureText,
           validator: validator,
+          inputFormatters: inputFormatters,
           style: GoogleFonts.poppins(
             fontSize: 14,
             color: _ink,

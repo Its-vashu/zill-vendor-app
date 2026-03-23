@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:vendor_app/core/services/api_service.dart';
 import 'package:vendor_app/core/services/push_notification_service.dart';
 import 'package:vendor_app/core/services/storage_service.dart';
+import 'package:vendor_app/core/services/websocket_service.dart';
 import 'package:vendor_app/features/auth/viewmodel/auth_viewmodel.dart';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -13,6 +14,8 @@ class MockStorageService extends Mock implements StorageService {}
 
 class MockPushNotificationService extends Mock
     implements PushNotificationService {}
+
+class MockWebSocketService extends Mock implements WebSocketService {}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 Response<dynamic> fakeResponse(dynamic data, {int statusCode = 200}) =>
@@ -50,17 +53,20 @@ void main() {
   late MockApiService api;
   late MockStorageService storage;
   late MockPushNotificationService push;
+  late MockWebSocketService ws;
   late AuthViewModel vm;
 
   setUp(() {
     api = MockApiService();
     storage = MockStorageService();
     push = MockPushNotificationService();
+    ws = MockWebSocketService();
 
     vm = AuthViewModel(
       apiService: api,
       storageService: storage,
       pushService: push,
+      wsService: ws,
     );
 
     // Push service: always succeeds silently in tests

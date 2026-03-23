@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────
+// Zill Restaurant Partner — Vendor App
+// Author: Vashu Mogha (@Its-vashu)
+// ─────────────────────────────────────────
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -257,11 +261,29 @@ enum OrdersStatus { initial, loading, loaded, error }
 class OrdersViewModel extends ChangeNotifier {
   final ApiService _api;
   StreamSubscription<void>? _sessionExpiredSub;
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
 
   OrdersViewModel({required ApiService apiService}) : _api = apiService {
     _sessionExpiredSub = ApiService.onSessionExpired.listen((_) {
       AppLogger.w('[Orders] Session expired — stopping auto-refresh');
       stopAutoRefresh();
+    });
+  }
+
+  // ── WebSocket integration ──────────────────────────────────────────
+  /// Call once after login to listen for real-time order events.
+  /// On each relevant WS message, triggers an immediate silent refresh
+  /// so the vendor sees new/updated orders without waiting for the poll.
+  void listenToWebSocket(Stream<Map<String, dynamic>> wsStream) {
+    _wsSub?.cancel();
+    _wsSub = wsStream.listen((data) {
+      final type = data['type'] as String? ?? '';
+      if (type == 'new_notification' || type == 'order_update' ||
+          type == 'new_order' || type == 'order_cancelled' ||
+          type == 'order_status_updated' || type == 'status_update') {
+        AppLogger.i('[Orders] WS event "$type" — refreshing');
+        _silentRefresh();
+      }
     });
   }
 
@@ -617,6 +639,7 @@ class OrdersViewModel extends ChangeNotifier {
   void dispose() {
     _autoRefreshTimer?.cancel();
     _sessionExpiredSub?.cancel();
+    _wsSub?.cancel();
     super.dispose();
   }
 

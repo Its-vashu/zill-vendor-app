@@ -244,7 +244,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             itemBuilder: (context, index) {
               final plan = vm.plans[index];
               final isCurrentPlan = vm.mySubscription?.planId == plan.planId;
-              final isMostPopular = index == 1 && vm.plans.length > 1;
+              final isMostPopular = plan.isRecommended;
               return _PlanCard(
                 plan: plan,
                 isAnnual: vm.showAnnual,
@@ -259,6 +259,13 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         ),
       ],
     );
+  }
+
+  String? _maxSavingsBadge(SubscriptionViewModel vm) {
+    final maxSavings = vm.plans
+        .map((p) => p.savingsPercent ?? 0)
+        .fold(0, (a, b) => a > b ? a : b);
+    return maxSavings > 0 ? 'Save up to $maxSavings%' : null;
   }
 
   Widget _buildBillingToggle(SubscriptionViewModel vm) {
@@ -291,7 +298,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             Expanded(
               child: _ToggleButton(
                 label: 'Annual',
-                badge: 'Save up to 20%',
+                badge: _maxSavingsBadge(vm),
                 isSelected: vm.showAnnual,
                 onTap: () {
                   if (!vm.showAnnual) vm.toggleBillingCycle();

@@ -147,6 +147,7 @@ class VendorNotificationHandler {
     required VendorNotificationPayload payload,
     required bool isNew,
   }) {
+    if (!context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     messenger.clearSnackBars();
 
