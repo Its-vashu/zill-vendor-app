@@ -69,7 +69,10 @@ class UpdateService {
       final info = await PackageInfo.fromPlatform();
       final localBuild = int.tryParse(info.buildNumber) ?? 0;
 
-      final response = await _dio.get(ApiEndpoints.latestRelease);
+      final response = await _dio.get(
+        ApiEndpoints.latestRelease,
+        queryParameters: {'app_type': 'vendor'},
+      );
       final data = response.data as Map<String, dynamic>;
 
       final remoteBuild = (data['build_number'] as num?)?.toInt() ?? 0;

@@ -18,12 +18,16 @@ import 'notification_handler.dart';
 
 /// Top-level handler for background/terminated FCM messages.
 /// Must be a top-level function (not a class method).
+///
+/// NOTE: ZillFirebaseMessagingService (native Kotlin) already handles:
+///   - new_order/vendor_new_order → OrderAlarmService (full-screen alarm)
+///   - other types → native notification via NotificationManager
+/// This handler is still called via super.onMessageReceived() and is kept
+/// as a safety net for any Flutter-side work (e.g. badge updates in future).
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Ensure the local-notification channel exists so the system can play
-  // the default sound even when the app process is dead.
   await _ensureNotificationChannel();
-  AppLogger.i('[FCM] Background message: ${message.messageId}');
+  AppLogger.i('[FCM] Background message: ${message.messageId} type=${message.data["type"]}');
 }
 
 /// High-importance channel used for all vendor alerts.
