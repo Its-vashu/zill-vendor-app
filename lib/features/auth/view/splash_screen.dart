@@ -111,10 +111,14 @@ class _SplashScreenState extends State<SplashScreen>
     if (_navigated) return;
 
     final updateResult = await UpdateService.instance.checkForUpdate();
+    debugPrint('[Splash] Update check result: hasUpdate=${updateResult.hasUpdate} isForce=${updateResult.isForceUpdate} version=${updateResult.latestVersion}');
     if (!mounted) return;
     if (updateResult.hasUpdate) {
+      debugPrint('[Splash] Showing update dialog...');
       await showUpdateDialog(context, updateResult);
       if (!mounted) return;
+    } else {
+      debugPrint('[Splash] No update needed, proceeding to auth check');
     }
 
     final authVM = context.read<AuthViewModel>();

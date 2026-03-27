@@ -12,17 +12,12 @@ import com.google.firebase.messaging.RemoteMessage
 import io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService
 
 /**
- * Custom FCM service that intercepts messages before Flutter processes them.
+ * Custom FCM service — intercepts all messages before Flutter processes them.
  *
- * Responsibilities:
- *  - new_order / vendor_new_order → start [OrderAlarmService] for full-screen
- *    alarm even from terminated state.
- *  - Other data-only messages → show a standard high-importance notification
- *    natively so they appear even when the app is in background/terminated.
- *  - Always call super() so Flutter's onMessage stream / background handler runs.
+ * new_order / vendor_new_order → rich heads-up notification (Zomato-style).
+ * Other messages             → standard high-importance notification.
  *
- * The manifest removes Flutter's default FlutterFirebaseMessagingService and
- * registers this class instead, so FCM routes all messages here first.
+ * Always calls super() so Flutter's onMessage stream / background handler runs.
  */
 class ZillFirebaseMessagingService : FlutterFirebaseMessagingService() {
 
@@ -36,39 +31,70 @@ class ZillFirebaseMessagingService : FlutterFirebaseMessagingService() {
         Log.i(TAG, "onMessageReceived: type=$type id=${message.messageId}")
 
         when (type) {
-            "new_order", "vendor_new_order" -> startOrderAlarm(message.data)
+            "new_order", "vendor_new_order" -> showOrderNotification(message.data)
             else -> showNativeNotification(message)
         }
 
-        // Propagate to Flutter — triggers onMessage stream (foreground) or
-        // the @pragma('vm:entry-point') background handler (background/terminated).
+        // Always propagate — triggers Flutter onMessage / background handler.
         super.onMessageReceived(message)
     }
 
-    // ── Start the alarm foreground service ────────────────────────────────────
+    // ── Rich order notification (Zomato-style heads-up) ──────────────────────
 
-    private fun startOrderAlarm(data: Map<String, String>) {
-        val intent = Intent(this, OrderAlarmService::class.java).apply {
-            putExtra(OrderAlarmService.EXTRA_ORDER_ID,       data["order_id"]      ?: "0")
-            putExtra(OrderAlarmService.EXTRA_ORDER_NUMBER,   data["order_number"]  ?: "New Order")
-            putExtra(OrderAlarmService.EXTRA_ORDER_AMOUNT,   data["order_amount"]  ?: "")
-            putExtra(OrderAlarmService.EXTRA_ORDER_ITEMS,    data["order_items"]   ?: "")
-            putExtra(OrderAlarmService.EXTRA_ORDER_CUSTOMER, data["customer_name"] ?: "")
-        }
+    private fun showOrderNotification(data: Map<String, String>) {
+        val orderNumber  = data["order_number"]  ?: ""
+        val customerName = data["customer_name"] ?: ""
+        val totalAmount  = data["total_amount"]  ?: data["order_amount"]  ?: ""
+        val itemsSummary = data["items_summary"] ?: data["order_items"]   ?: ""
+        val orderId      = data["order_id"]      ?: ""
 
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
+        val title = if (orderNumber.isNotEmpty()) "New Order! #$orderNumber"
+                    else "New Order!"
+
+        val body = buildString {
+            if (customerName.isNotEmpty()) append(customerName)
+            if (itemsSummary.isNotEmpty()) {
+                if (isNotEmpty()) append(" • ")
+                append(itemsSummary)
             }
-            Log.i(TAG, "OrderAlarmService started for order ${data["order_id"]}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start OrderAlarmService", e)
-        }
+            if (totalAmount.isNotEmpty()) {
+                if (isNotEmpty()) append(" • ")
+                append("₹$totalAmount")
+            }
+        }.ifEmpty { data["body"] ?: "Tap to view order details." }
+
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ensureChannel(manager)
+
+        val tapIntent = PendingIntent.getActivity(
+            this,
+            orderId.hashCode(),
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("order_id", orderId)
+                putExtra("navigate_to", "orders")
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setVibrate(longArrayOf(0, 300, 150, 300))
+            .setContentIntent(tapIntent)
+            .build()
+
+        val notifId = orderId.hashCode().takeIf { it != 0 }
+            ?: System.currentTimeMillis().toInt()
+        manager.notify(notifId, notification)
+        Log.i(TAG, "Order notification shown: $title")
     }
 
-    // ── Show a standard notification for non-alarm messages ───────────────────
+    // ── Standard notification for non-order messages ─────────────────────────
 
     private fun showNativeNotification(message: RemoteMessage) {
         val title = message.notification?.title
@@ -79,25 +105,14 @@ class ZillFirebaseMessagingService : FlutterFirebaseMessagingService() {
             ?: ""
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "High Importance Notifications",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Order alerts and important vendor notifications"
-                enableVibration(true)
-            }
-            manager.createNotificationChannel(channel)
-        }
+        ensureChannel(manager)
 
         val tapIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -113,5 +128,22 @@ class ZillFirebaseMessagingService : FlutterFirebaseMessagingService() {
         val notifId = message.messageId?.hashCode() ?: System.currentTimeMillis().toInt()
         manager.notify(notifId, notification)
         Log.i(TAG, "Native notification shown: $title")
+    }
+
+    // ── Ensure notification channel exists (Android 8+) ──────────────────────
+
+    private fun ensureChannel(manager: NotificationManager) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Order Alerts",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "New orders and important vendor notifications"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 300, 150, 300)
+            }
+            manager.createNotificationChannel(channel)
+        }
     }
 }

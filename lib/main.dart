@@ -17,7 +17,6 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'core/constants/app_strings.dart';
 import 'core/routing/app_router.dart';
 import 'core/services/api_service.dart';
-import 'core/services/order_alarm_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/services/websocket_service.dart';
@@ -132,20 +131,6 @@ void main() {
 
       final wsService = WebSocketService(storageService: storageService);
 
-      // Initialize the order alarm method channel bridge
-      OrderAlarmService.init();
-
-      // Wire up alarm listener — navigate to IncomingOrderScreen when alarm fires
-      OrderAlarmService.onAlarmOrderReceived = (data) {
-        navigatorKey.currentState?.pushNamed(
-          AppRouter.incomingOrder,
-          arguments: data,
-        );
-      };
-
-      // Check if app was cold-launched from an alarm notification
-      _checkAlarmLaunch(navigatorKey);
-
       runApp(
         VendorApp(
           storageService: storageService,
@@ -165,17 +150,6 @@ void main() {
 
 /// If the app was cold-launched from an alarm notification, navigate to
 /// the IncomingOrderScreen once the navigator is ready.
-Future<void> _checkAlarmLaunch(GlobalKey<NavigatorState> navigatorKey) async {
-  // Small delay to let the navigator initialize after runApp
-  await Future.delayed(const Duration(milliseconds: 500));
-  final data = await OrderAlarmService.getAlarmOrderData();
-  if (data != null && data.orderId > 0) {
-    navigatorKey.currentState?.pushNamed(
-      AppRouter.incomingOrder,
-      arguments: data,
-    );
-  }
-}
 
 class VendorApp extends StatelessWidget {
   final StorageService storageService;

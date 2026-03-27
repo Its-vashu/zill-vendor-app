@@ -44,10 +44,14 @@ class OrderAlarmService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d("ZILL_FCM", "OrderAlarmService.onCreate() called")
         createNotificationChannel()
+        Log.d("ZILL_FCM", "OrderAlarmService.onCreate() complete")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("ZILL_FCM", "OrderAlarmService.onStartCommand() called — action=${intent?.action}")
+
         if (intent?.action == ACTION_STOP) {
             Log.i(TAG, "Received STOP action")
             stopSelf()
@@ -60,12 +64,22 @@ class OrderAlarmService : Service() {
         val orderItems = intent?.getStringExtra(EXTRA_ORDER_ITEMS) ?: ""
         val customerName = intent?.getStringExtra(EXTRA_ORDER_CUSTOMER) ?: ""
 
+        Log.d("ZILL_FCM", "OrderAlarmService extras:")
+        Log.d("ZILL_FCM", "  orderId=$orderId orderNumber=$orderNumber")
+        Log.d("ZILL_FCM", "  amount=$orderAmount items=$orderItems customer=$customerName")
         Log.i(TAG, "Starting alarm for order #$orderNumber (id=$orderId)")
 
         acquireWakeLock()
 
         val notification = buildNotification(orderId, orderNumber, orderAmount, orderItems, customerName)
-        startForeground(NOTIFICATION_ID, notification)
+
+        try {
+            Log.d("ZILL_FCM", ">>> startForeground(NOTIFICATION_ID=$NOTIFICATION_ID)")
+            startForeground(NOTIFICATION_ID, notification)
+            Log.d("ZILL_FCM", "✅ startForeground() succeeded")
+        } catch (e: Exception) {
+            Log.e("ZILL_FCM", "❌ startForeground() FAILED: ${e::class.java.simpleName} — ${e.message}", e)
+        }
 
         handler.removeCallbacks(timeoutRunnable)
         handler.postDelayed(timeoutRunnable, TIMEOUT_MS)

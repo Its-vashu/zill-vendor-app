@@ -269,20 +269,19 @@ class PushNotificationService {
   // ── Foreground Messages ────────────────────────────────────────────
   void _handleForegroundMessage(RemoteMessage message) {
     AppLogger.i('[FCM] Foreground message: ${message.messageId}');
-    AppLogger.i('[FCM]   title: ${message.notification?.title}');
-    AppLogger.i('[FCM]   body: ${message.notification?.body}');
     AppLogger.i('[FCM]   data: ${message.data}');
 
     final type = message.data['type'] ?? '';
 
-    // New order → just refresh orders list + show local notification
     if (type == 'new_order' || type == 'vendor_new_order') {
+      // Native ZillFirebaseMessagingService already shows the heads-up notification.
+      // Only refresh the orders list here — no duplicate local notification.
       AppLogger.i('[FCM] New order received — refreshing orders');
       onRefreshOrders?.call();
+    } else {
+      // All other types: show a local heads-up notification.
+      _showLocalNotification(message);
     }
-
-    // Non-order messages: show a heads-up local notification
-    _showLocalNotification(message);
 
     // Delegate to VendorNotificationHandler for order-related actions
     if (message.data.isNotEmpty && onRefreshOrders != null) {

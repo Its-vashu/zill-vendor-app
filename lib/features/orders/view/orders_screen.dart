@@ -1794,15 +1794,16 @@ class _ActionButtonsState extends State<_ActionButtons> {
     final btnShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(9),
     );
-    const btnPad = EdgeInsets.symmetric(vertical: 12);
+    const btnPad = EdgeInsets.symmetric(vertical: 8, horizontal: 8);
 
     final status = widget.order.status.toLowerCase();
 
     if (status == 'pending') {
       return Row(
         children: [
-          // Reject — red filled (light) with X icon so users clearly see "cancel"
+          // Reject — smaller (flex 1), red outlined
           Expanded(
+            flex: 1,
             child: ElevatedButton(
               onPressed: actioning ? null : _showRejectDialog,
               style: ElevatedButton.styleFrom(
@@ -1831,8 +1832,9 @@ class _ActionButtonsState extends State<_ActionButtons> {
             ),
           ),
           const SizedBox(width: 12),
-          // Accept — green filled with checkmark icon
+          // Accept Order — larger (flex 2), green filled
           Expanded(
+            flex: 2,
             child: ElevatedButton(
               onPressed: actioning ? null : _showAcceptDialog,
               style: ElevatedButton.styleFrom(
@@ -1850,7 +1852,7 @@ class _ActionButtonsState extends State<_ActionButtons> {
                         Icon(Icons.check_rounded, size: 18),
                         SizedBox(width: 6),
                         Text(
-                          'Accept',
+                          'Accept Order',
                           style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ],

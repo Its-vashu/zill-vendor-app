@@ -690,7 +690,7 @@ class _LiveOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLoading = ordersVm.isActionLoading(order.id);
     final statusColor = _statusColor(order.status);
-    final timeStr = DateFormat('h:mm a').format(order.createdAt);
+    final timeStr = DateFormat('h:mm a').format(order.createdAt.toLocal());
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -924,7 +924,12 @@ class _LiveOrderCard extends StatelessWidget {
     showAcceptOrderDialog(
       context: context,
       order: order,
-      onAccept: (prepTime) => ordersVm.acceptOrder(order.id, estimatedPrepTime: prepTime),
+      onAccept: (prepTime) async {
+        await ordersVm.acceptOrder(order.id, estimatedPrepTime: prepTime);
+        if (context.mounted) {
+          context.read<DashboardViewModel>().fetchDashboard();
+        }
+      },
     );
   }
 

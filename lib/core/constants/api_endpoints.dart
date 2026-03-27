@@ -128,14 +128,14 @@ class ApiEndpoints {
   static const String staff = '/vendors/staff/';
   static String staffDetail(int id) => '/vendors/staff/$id/';
 
-  // Support Tickets
-  static const String supportTickets = '/orders/support/tickets/';
-  static const String supportTicketCreate = '/orders/support/tickets/create/';
-  static String supportTicketDetail(int id) => '/orders/support/tickets/$id/';
+  // Support Tickets (vendor endpoints)
+  static const String supportTickets = '/vendors/support/tickets/';
+  static const String supportTicketCreate = '/vendors/support/tickets/create/';
+  static String supportTicketDetail(int id) => '/vendors/support/tickets/$id/';
   static String supportTicketReply(int id) =>
-      '/orders/support/tickets/$id/reply/';
+      '/vendors/support/tickets/$id/reply/';
   static String supportTicketRate(int id) =>
-      '/orders/support/tickets/$id/rate/';
+      '/vendors/support/tickets/$id/rate/';
 
   // Chat / AI Support
   static const String chatSessionStart = '/support/chat/session/start/';
@@ -163,6 +163,7 @@ class ApiEndpoints {
 
   // App Version / Force Update (public — no auth required)
   static const String latestRelease = '/admin/latest-release/';
+  static const String trackDownload = '/admin/track-download/';
 
   // ── WebSocket ─────────────────────────────────────────────────────
   static const String wsBaseUrl = 'wss://zill.co.in';
