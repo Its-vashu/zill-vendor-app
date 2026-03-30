@@ -6,7 +6,8 @@ import '../../../core/constants/app_sizes.dart';
 import '../viewmodel/promotions_viewmodel.dart';
 
 class AddPromotionSheet extends StatefulWidget {
-  const AddPromotionSheet({super.key});
+  final Promotion? editPromo;
+  const AddPromotionSheet({super.key, this.editPromo});
 
   @override
   State<AddPromotionSheet> createState() => _AddPromotionSheetState();
@@ -22,6 +23,24 @@ class _AddPromotionSheetState extends State<AddPromotionSheet> {
   final _usageLimitCtrl = TextEditingController(text: '100');
   DateTime _validFrom = DateTime.now();
   DateTime _validUntil = DateTime.now().add(const Duration(days: 30));
+
+  bool get _isEditing => widget.editPromo != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.editPromo;
+    if (p != null) {
+      _codeCtrl.text = p.code;
+      _descCtrl.text = p.description;
+      _discountCtrl.text = p.discountValue.toInt().toString();
+      if (p.maxDiscount != null) _maxDiscountCtrl.text = p.maxDiscount!.toInt().toString();
+      _minOrderCtrl.text = p.minOrderAmount.toInt().toString();
+      if (p.usageLimit != null) _usageLimitCtrl.text = p.usageLimit.toString();
+      _validFrom = p.validFrom;
+      _validUntil = p.validUntil;
+    }
+  }
 
   @override
   void dispose() {
@@ -78,21 +97,21 @@ class _AddPromotionSheetState extends State<AddPromotionSheet> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Create New Offer',
-                        style: TextStyle(
+                        _isEditing ? 'Edit Offer' : 'Create New Offer',
+                        style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
                       ),
                       Text(
-                        'Set up a promotion for your customers',
-                        style: TextStyle(
+                        _isEditing ? 'Update your promotion details' : 'Set up a promotion for your customers',
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textHint,
                         ),
@@ -140,6 +159,7 @@ class _AddPromotionSheetState extends State<AddPromotionSheet> {
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _codeCtrl,
+                      readOnly: _isEditing,
                       textCapitalization: TextCapitalization.characters,
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
@@ -318,9 +338,9 @@ class _AddPromotionSheetState extends State<AddPromotionSheet> {
                             ),
                           ),
                         ),
-                        child: const Text(
-                          'Create Promotion',
-                          style: TextStyle(
+                        child: Text(
+                          _isEditing ? 'Update Promotion' : 'Create Promotion',
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
@@ -411,28 +431,47 @@ class _AddPromotionSheetState extends State<AddPromotionSheet> {
     if (!_formKey.currentState!.validate()) return;
 
     final vm = context.read<PromotionsViewModel>();
-    final success = await vm.addPromo(
-      code: _codeCtrl.text.trim(),
-      description: _descCtrl.text.trim(),
-      discountValue: double.parse(_discountCtrl.text),
-      maxDiscount: _maxDiscountCtrl.text.isNotEmpty
-          ? double.parse(_maxDiscountCtrl.text)
-          : null,
-      minOrderAmount: double.parse(_minOrderCtrl.text),
-      validFrom: _validFrom,
-      validUntil: _validUntil,
-      usageLimit: _usageLimitCtrl.text.isNotEmpty
-          ? int.parse(_usageLimitCtrl.text)
-          : null,
-    );
+    final bool success;
+
+    if (_isEditing) {
+      success = await vm.editPromo(
+        id: widget.editPromo!.id,
+        description: _descCtrl.text.trim(),
+        discountValue: double.parse(_discountCtrl.text),
+        maxDiscount: _maxDiscountCtrl.text.isNotEmpty
+            ? double.parse(_maxDiscountCtrl.text)
+            : null,
+        minOrderAmount: double.parse(_minOrderCtrl.text),
+        validFrom: _validFrom,
+        validUntil: _validUntil,
+        usageLimit: _usageLimitCtrl.text.isNotEmpty
+            ? int.parse(_usageLimitCtrl.text)
+            : null,
+      );
+    } else {
+      success = await vm.addPromo(
+        code: _codeCtrl.text.trim(),
+        description: _descCtrl.text.trim(),
+        discountValue: double.parse(_discountCtrl.text),
+        maxDiscount: _maxDiscountCtrl.text.isNotEmpty
+            ? double.parse(_maxDiscountCtrl.text)
+            : null,
+        minOrderAmount: double.parse(_minOrderCtrl.text),
+        validFrom: _validFrom,
+        validUntil: _validUntil,
+        usageLimit: _usageLimitCtrl.text.isNotEmpty
+            ? int.parse(_usageLimitCtrl.text)
+            : null,
+      );
+    }
 
     if (!mounted) return;
 
     if (success) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Promotion created successfully!'),
+        SnackBar(
+          content: Text(_isEditing ? 'Promotion updated!' : 'Promotion created!'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.success,
         ),
@@ -440,7 +479,7 @@ class _AddPromotionSheetState extends State<AddPromotionSheet> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(vm.errorMessage ?? 'Failed to create promotion'),
+          content: Text(vm.errorMessage ?? 'Failed'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.error,
         ),

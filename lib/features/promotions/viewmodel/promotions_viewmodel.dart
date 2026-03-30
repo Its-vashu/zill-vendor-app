@@ -263,6 +263,52 @@ class PromotionsViewModel extends ChangeNotifier {
     }
   }
 
+  // ── Edit ─────────────────────────────────────────────────────────────────
+  Future<bool> editPromo({
+    required int id,
+    required String description,
+    String discountType = 'percentage',
+    required double discountValue,
+    double? maxDiscount,
+    required double minOrderAmount,
+    required DateTime validFrom,
+    required DateTime validUntil,
+    int? usageLimit,
+  }) async {
+    _isBusy = true;
+    notifyListeners();
+
+    final data = <String, dynamic>{
+      'description': description,
+      'discount_type': discountType,
+      'discount_value': discountValue,
+      'max_discount': maxDiscount,
+      'min_order_amount': minOrderAmount,
+      'valid_from': validFrom.toIso8601String().split('T').first,
+      'valid_until': validUntil.toIso8601String().split('T').first,
+      'usage_limit': usageLimit,
+    };
+
+    try {
+      await _apiService.put(ApiEndpoints.couponDetail(id), data: data);
+      await fetchPromotions();
+      _isBusy = false;
+      notifyListeners();
+      return true;
+    } on DioException catch (e) {
+      _errorMessage = _parseDioError(e);
+      _isBusy = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to update promotion.';
+      _isBusy = false;
+      notifyListeners();
+      debugPrint('[PromotionsVM] editPromo: $e');
+      return false;
+    }
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   String _parseDioError(DioException e) {

@@ -400,12 +400,43 @@ class _PromoList extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (_, i) => _CouponCard(
               promo: list[i],
-              onToggle: () => vm.togglePromo(list[i].id),
+              onToggle: () async {
+                final promo = list[i];
+                final success = await vm.togglePromo(promo.id);
+                if (!context.mounted) return;
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        promo.isActive
+                            ? '"${promo.code}" disabled'
+                            : '"${promo.code}" enabled',
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: promo.isActive ? AppColors.textSecondary : AppColors.success,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
               onDelete: () => _confirmDelete(context, vm, list[i]),
+              onEdit: () => _showEditSheet(context, list[i]),
             ),
           ),
         );
       },
+    );
+  }
+
+  void _showEditSheet(BuildContext context, Promotion promo) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: context.read<PromotionsViewModel>(),
+        child: AddPromotionSheet(editPromo: promo),
+      ),
     );
   }
 
@@ -465,11 +496,13 @@ class _CouponCard extends StatelessWidget {
   final Promotion promo;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   const _CouponCard({
     required this.promo,
     required this.onToggle,
     required this.onDelete,
+    required this.onEdit,
   });
 
   @override
@@ -596,30 +629,19 @@ class _CouponCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Toggle / More
-                Column(
-                  children: [
-                    SizedBox(
-                      height: 28,
-                      child: Switch(
-                        value: promo.isActive,
-                        onChanged: (_) => onToggle(),
-                        activeTrackColor: AppColors.success.withAlpha(80),
-                        activeThumbColor: AppColors.success,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: onDelete,
-                      child: Icon(
-                        Icons.delete_outline_rounded,
-                        size: 18,
-                        color: AppColors.textHint.withAlpha(120),
-                      ),
-                    ),
-                  ],
+                // Toggle
+                SizedBox(
+                  height: 28,
+                  child: Switch(
+                    value: promo.isActive,
+                    onChanged: (_) => onToggle(),
+                    activeTrackColor: AppColors.success.withAlpha(120),
+                    activeThumbColor: Colors.white,
+                    inactiveTrackColor: AppColors.error.withAlpha(40),
+                    inactiveThumbColor: AppColors.error.withAlpha(180),
+                    materialTapTargetSize:
+                        MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ],
             ),
@@ -696,10 +718,112 @@ class _CouponCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                // Edit / Delete buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AnimatedActionButton(
+                        icon: Icons.edit_outlined,
+                        label: 'Edit',
+                        color: AppColors.primary,
+                        onTap: onEdit,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _AnimatedActionButton(
+                        icon: Icons.delete_outline_rounded,
+                        label: 'Delete',
+                        color: AppColors.error,
+                        onTap: onDelete,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AnimatedActionButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AnimatedActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedActionButton> createState() => _AnimatedActionButtonState();
+}
+
+class _AnimatedActionButtonState extends State<_AnimatedActionButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _scale = Tween(begin: 1.0, end: 0.93).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: widget.color.withAlpha(12),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: widget.color.withAlpha(60)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(widget.icon, size: 16, color: widget.color),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: widget.color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
