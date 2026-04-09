@@ -268,7 +268,7 @@ class KycViewModel extends ChangeNotifier {
   /// Pick a PDF file. Returns file path or null if cancelled.
   Future<String?> pickPdf() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
         allowMultiple: false,

@@ -507,7 +507,7 @@ class AuthViewModel extends ChangeNotifier {
         case DioExceptionType.receiveTimeout:
           return 'Connection timed out. Please check your internet.';
         case DioExceptionType.connectionError:
-          return 'Cannot reach server. Make sure the backend is running on port 8000.';
+          return 'Cannot reach server. Please check your internet connection.';
         default:
           return 'Network error. Please check your connection.';
       }

@@ -12,6 +12,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/constants/app_colors.dart';
 import '../viewmodel/menu_viewmodel.dart';
 import 'add_edit_menu_screen.dart';
+import 'bulk_upload_screen.dart';
 import 'manage_categories_screen.dart';
 
 // ────────────────────────────────────────────────────────────────────
@@ -57,13 +58,14 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
       builder: (context, vm, _) {
         // Show error snack (once)
         if (vm.error != null) {
+          final errorMsg = vm.error!; // capture before async callback
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             ScaffoldMessenger.of(context)
               ..clearSnackBars()
               ..showSnackBar(
                 SnackBar(
-                  content: Text(vm.error!),
+                  content: Text(errorMsg),
                   backgroundColor: AppColors.error,
                   behavior: SnackBarBehavior.floating,
                   action: SnackBarAction(
@@ -197,6 +199,18 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
         ],
       ),
       actions: [
+        IconButton(
+          tooltip: 'Bulk CSV Upload',
+          icon: const Icon(Icons.upload_file_rounded, size: 22),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const BulkUploadScreen(),
+            ),
+          ).then((_) {
+            if (mounted) context.read<MenuViewModel>().fetchMenu();
+          }),
+        ),
         IconButton(
           tooltip: 'Bulk Select',
           icon: const Icon(Icons.checklist_rounded, size: 22),
