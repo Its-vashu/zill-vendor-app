@@ -26,7 +26,8 @@ class MenuCard extends StatelessWidget {
   }
 }
 
-/// Single row inside a [MenuCard] — icon, title/subtitle, chevron.
+/// Single row inside a [MenuCard] — icon, title/subtitle, optional
+/// trailing badge, then chevron.
 class MenuItem extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -35,6 +36,9 @@ class MenuItem extends StatelessWidget {
   final VoidCallback onTap;
   final bool isExternal;
   final bool isLast;
+  /// Optional widget rendered just before the chevron — typically a
+  /// status pill (e.g. "Under Review" on the KYC row).
+  final Widget? trailing;
 
   const MenuItem({
     super.key,
@@ -45,6 +49,7 @@ class MenuItem extends StatelessWidget {
     required this.onTap,
     this.isExternal = false,
     this.isLast = false,
+    this.trailing,
   });
 
   @override
@@ -94,6 +99,10 @@ class MenuItem extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (trailing != null) ...[
+                  trailing!,
+                  const SizedBox(width: 6),
+                ],
                 Icon(
                   isExternal
                       ? Icons.open_in_new_rounded

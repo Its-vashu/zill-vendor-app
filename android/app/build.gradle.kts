@@ -94,3 +94,16 @@ dependencies {
 flutter {
     source = "../.."
 }
+
+// Keep release builds reproducible on restricted networks.
+// Enable with: -Pzill.uploadCrashlytics=true
+val uploadCrashlytics = providers
+    .gradleProperty("zill.uploadCrashlytics")
+    .map { it.equals("true", ignoreCase = true) }
+    .orElse(false)
+
+tasks.configureEach {
+    if (name.startsWith("uploadCrashlytics") && !uploadCrashlytics.get()) {
+        enabled = false
+    }
+}

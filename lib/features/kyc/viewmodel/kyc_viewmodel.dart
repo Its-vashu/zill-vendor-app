@@ -36,6 +36,13 @@ class UploadProgress {
 class KycViewModel extends ChangeNotifier {
   final ApiService _api;
 
+  static const List<KycDocumentType> requiredDocumentTypes = [
+    KycDocumentType.fssai,
+    KycDocumentType.pan,
+    KycDocumentType.gst,
+    KycDocumentType.bank,
+  ];
+
   KycViewModel({required ApiService apiService}) : _api = apiService;
 
   KycStatus _status = KycStatus.initial;
@@ -51,6 +58,43 @@ class KycViewModel extends ChangeNotifier {
   String? get error => _error;
   List<KycDocument> get documents => _documents;
   KycVerificationStatus? get verificationStatus => _verificationStatus;
+  int get totalRequiredDocumentCount =>
+      _verificationStatus?.totalRequired ?? requiredDocumentTypes.length;
+  int get uploadedRequiredDocumentCount {
+    final uploadedTypes = <KycDocumentType>{};
+
+    for (final document in _documents) {
+      if (document.id > 0 &&
+          requiredDocumentTypes.contains(document.documentType)) {
+        uploadedTypes.add(document.documentType);
+      }
+    }
+
+    return uploadedTypes.length;
+  }
+
+  double get requiredDocumentsUploadProgress {
+    if (totalRequiredDocumentCount == 0) {
+      return 0;
+    }
+    return uploadedRequiredDocumentCount / totalRequiredDocumentCount;
+  }
+
+  bool get hasUploadedAllRequiredDocuments =>
+      uploadedRequiredDocumentCount >= totalRequiredDocumentCount &&
+      totalRequiredDocumentCount > 0;
+  String get verificationBannerTitle {
+    if (_verificationStatus?.isFullyVerified ?? false) {
+      return 'Fully Verified';
+    }
+    if (hasUploadedAllRequiredDocuments) {
+      return 'Documents Submitted';
+    }
+    return 'Verification In Progress';
+  }
+
+  String get verificationBannerSubtitle =>
+      '$uploadedRequiredDocumentCount of $totalRequiredDocumentCount required documents uploaded';
 
   /// All 7 document types the vendor must provide.
   static const List<KycDocumentType> allDocumentTypes = [
@@ -80,8 +124,7 @@ class KycViewModel extends ChangeNotifier {
       _uploadProgress[type]?.isUploading ?? false;
 
   /// True if any document type is currently mid-upload.
-  bool get isAnyUploading =>
-      _uploadProgress.values.any((p) => p.isUploading);
+  bool get isAnyUploading => _uploadProgress.values.any((p) => p.isUploading);
 
   // ── Fetch Documents ──────────────────────────────────────────────
   Future<void> fetchDocuments() async {
@@ -99,8 +142,7 @@ class KycViewModel extends ChangeNotifier {
           .map(KycDocument.fromJson)
           .toList();
 
-      final rawStatus =
-          data['verification_status'] as Map<String, dynamic>?;
+      final rawStatus = data['verification_status'] as Map<String, dynamic>?;
       _verificationStatus = rawStatus != null
           ? KycVerificationStatus.fromJson(rawStatus)
           : null;
@@ -108,6 +150,8 @@ class KycViewModel extends ChangeNotifier {
       _status = KycStatus.loaded;
       debugPrint(
         '[KYC] ${_documents.length} documents loaded, '
+        'uploaded: $uploadedRequiredDocumentCount/'
+        '$totalRequiredDocumentCount, '
         'verified: ${_verificationStatus?.verified ?? 0}/'
         '${_verificationStatus?.totalRequired ?? 4}',
       );
@@ -230,8 +274,7 @@ class KycViewModel extends ChangeNotifier {
       );
       return photo?.path;
     } on PlatformException catch (e) {
-      if (e.code == 'camera_access_denied' ||
-          e.code == 'photo_access_denied') {
+      if (e.code == 'camera_access_denied' || e.code == 'photo_access_denied') {
         throw PickerPermissionDeniedException(e.code);
       }
       debugPrint('[KYC] Camera pick platform error: $e');

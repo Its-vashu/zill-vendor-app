@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/services/api_service.dart';
+import 'complete_profile_sheet.dart';
 
 import '../../home/view/app_shell.dart';
 import '../../reviews/view/reviews_screen.dart';
@@ -136,20 +137,17 @@ class ProfileHeaderCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 10),
-              // Badges
+              // Badges — verification badge mirrors the 4-state web tag
+              // (Unverified / Under Review / Verified / Rejected).
               if (!vm.isLoading)
                 Wrap(
                   alignment: WrapAlignment.center,
                   spacing: AppSizes.xs,
                   children: [
                     ProfileBadge(
-                      label: data.isVerified ? 'Verified' : 'Unverified',
-                      color: data.isVerified
-                          ? AppColors.success
-                          : AppColors.warning,
-                      icon: data.isVerified
-                          ? Icons.verified
-                          : Icons.warning_amber_rounded,
+                      label: data.verificationStatus.badgeLabel,
+                      color: data.verificationStatus.accentColor,
+                      icon: data.verificationStatus.icon,
                     ),
                     ProfileBadge(
                       label: data.isActive ? 'Active' : 'Inactive',
@@ -161,11 +159,31 @@ class ProfileHeaderCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              // Profile completion
-              if (!vm.isLoading && !data.isVerified) ...[
-                const SizedBox(height: 12),
-                ProfileCompletionBar(data: data),
-              ],
+              // Profile completion — bound to backend percentage from
+              // /vendors/dashboard/ → profile_completion.percentage,
+              // not a local field count. Hidden once 100% complete.
+              // The whole bar is tappable: tap → opens the
+              // "Complete your profile" bottom sheet which lists every
+              // missing setup task with a one-tap shortcut.
+              if (!vm.isLoading && (vm.profileCompletionPercentage ?? 0) < 100)
+                ...[
+                  const SizedBox(height: 12),
+                  Builder(
+                    builder: (innerContext) => InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => showCompleteProfileSheet(innerContext),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 6,
+                        ),
+                        child: ProfileCompletionBar(
+                          percentage: vm.profileCompletionPercentage,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               const SizedBox(height: 14),
               Container(height: 1, color: AppColors.borderLight),
               const SizedBox(height: 14),
@@ -312,8 +330,8 @@ class _AvatarButton extends StatelessWidget {
                         ),
                 ),
               ),
-            // Verified badge
-            if (vm.data.isVerified)
+            // Verified badge — only when KYC is fully approved.
+            if (vm.data.verificationStatus.isApproved)
               Positioned(
                 top: 2,
                 right: 2,
@@ -524,28 +542,19 @@ class TappableStat extends StatelessWidget {
 //  Profile Completion Bar
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Profile-completion progress bar bound to the backend-authoritative
+/// percentage from `GET /vendors/dashboard/` → `profile_completion.percentage`.
+/// Computed in `food-delivery-api/vendors/views.py:1905-1916` from 6 fixed
+/// sections (basic_info, images, operating_hours, delivery_zones,
+/// menu_items, categories) — never recomputed locally.
 class ProfileCompletionBar extends StatelessWidget {
-  final ProfileData data;
-  const ProfileCompletionBar({super.key, required this.data});
+  final int? percentage;
+  const ProfileCompletionBar({super.key, required this.percentage});
 
   @override
   Widget build(BuildContext context) {
-    int filled = 0;
-    const int total = 11;
-    if (data.storeName.isNotEmpty) filled++;
-    if (data.ownerName.isNotEmpty) filled++;
-    if (data.email.isNotEmpty) filled++;
-    if (data.phone.isNotEmpty) filled++;
-    if (data.address.isNotEmpty) filled++;
-    if (data.description.isNotEmpty) filled++;
-    if (data.fssaiNumber.isNotEmpty) filled++;
-    if (data.gstNumber.isNotEmpty) filled++;
-    if (data.panNumber.isNotEmpty) filled++;
-    if (data.logoUrl != null || data.imageUrl != null) filled++;
-    if (data.hasBankAccount) filled++;
-
-    final pct = filled / total;
-    final pctInt = (pct * 100).round();
+    final pctInt = (percentage ?? 0).clamp(0, 100);
+    final pct = pctInt / 100;
 
     return Column(
       children: [
@@ -561,7 +570,7 @@ class ProfileCompletionBar extends StatelessWidget {
               ),
             ),
             Text(
-              '$filled/$total',
+              '$pctInt%',
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,

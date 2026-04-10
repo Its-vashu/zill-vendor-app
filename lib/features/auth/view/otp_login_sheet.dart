@@ -66,7 +66,7 @@ class _WaOtpLoginSheetState extends State<_WaOtpLoginSheet> {
 
   // Step otp
   String _phone = '';
-  String _enteredOtp = '';         // kept for the name-step second call
+  String _enteredOtp = ''; // kept for the name-step second call
   int _cooldownSeconds = 0;
   Timer? _cooldownTimer;
 
@@ -104,7 +104,10 @@ class _WaOtpLoginSheetState extends State<_WaOtpLoginSheet> {
     _cooldownTimer?.cancel();
     setState(() => _cooldownSeconds = seconds > 0 ? seconds : 60);
     _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       setState(() {
         if (_cooldownSeconds > 0) {
           _cooldownSeconds--;
@@ -155,6 +158,20 @@ class _WaOtpLoginSheetState extends State<_WaOtpLoginSheet> {
       );
   }
 
+  Future<void> _navigateAfterAuthentication() async {
+    final authVM = context.read<AuthViewModel>();
+    final requiresSetup = await authVM.requiresSetupOnboarding();
+    if (!mounted) return;
+
+    final targetRoute = requiresSetup
+        ? AppRouter.setupOnboarding
+        : AppRouter.home;
+
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(targetRoute, (route) => false);
+  }
+
   // ── Send OTP ──────────────────────────────────────────────────────
   Future<void> _handleSendOtp() async {
     if (_cooldownSeconds > 0) return;
@@ -181,7 +198,9 @@ class _WaOtpLoginSheetState extends State<_WaOtpLoginSheet> {
       }
     } catch (e) {
       AppLogger.e('_handleSendOtp error: $e');
-      if (mounted) setState(() => _phoneError = 'Something went wrong. Please try again.');
+      if (mounted) {
+        setState(() => _phoneError = 'Something went wrong. Please try again.');
+      }
     }
   }
 
@@ -211,7 +230,7 @@ class _WaOtpLoginSheetState extends State<_WaOtpLoginSheet> {
       return;
     }
 
-    Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.home, (route) => false);
+    unawaited(_navigateAfterAuthentication());
   }
 
   // ── Submit restaurant name (new vendor) ───────────────────────────
@@ -238,13 +257,15 @@ class _WaOtpLoginSheetState extends State<_WaOtpLoginSheet> {
       if (!mounted) return;
 
       if (result.success) {
-        Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.home, (route) => false);
+        await _navigateAfterAuthentication();
       } else {
         setState(() => _nameError = result.message);
       }
     } catch (e) {
       AppLogger.e('_handleRegister error: $e');
-      if (mounted) setState(() => _nameError = 'Something went wrong. Please try again.');
+      if (mounted) {
+        setState(() => _nameError = 'Something went wrong. Please try again.');
+      }
     }
   }
 
@@ -264,29 +285,29 @@ class _WaOtpLoginSheetState extends State<_WaOtpLoginSheet> {
         switchOutCurve: Curves.easeIn,
         child: switch (_step) {
           _Step.phone => _PhoneInputView(
-              key: const ValueKey('phone'),
-              formKey: _phoneFormKey,
-              controller: _phoneCtrl,
-              onSend: _handleSendOtp,
-              onClose: () => Navigator.of(context).pop(),
-              cooldownSeconds: _cooldownSeconds,
-              errorText: _phoneError,
-            ),
+            key: const ValueKey('phone'),
+            formKey: _phoneFormKey,
+            controller: _phoneCtrl,
+            onSend: _handleSendOtp,
+            onClose: () => Navigator.of(context).pop(),
+            cooldownSeconds: _cooldownSeconds,
+            errorText: _phoneError,
+          ),
           _Step.otp => _OtpVerifyView(
-              key: const ValueKey('otp'),
-              phone: _phone,
-              onVerified: _onOtpVerified,
-              onBack: () => setState(() => _step = _Step.phone),
-              onResend: _resendOtp,
-              showSnack: _showSnack,
-            ),
+            key: const ValueKey('otp'),
+            phone: _phone,
+            onVerified: _onOtpVerified,
+            onBack: () => setState(() => _step = _Step.phone),
+            onResend: _resendOtp,
+            showSnack: _showSnack,
+          ),
           _Step.name => _RestaurantNameView(
-              key: const ValueKey('name'),
-              controller: _nameCtrl,
-              onSubmit: _handleRegister,
-              onBack: () => setState(() => _step = _Step.phone),
-              errorText: _nameError,
-            ),
+            key: const ValueKey('name'),
+            controller: _nameCtrl,
+            onSubmit: _handleRegister,
+            onBack: () => setState(() => _step = _Step.phone),
+            errorText: _nameError,
+          ),
         },
       ),
     );
@@ -373,7 +394,9 @@ class _PhoneInputView extends StatelessWidget {
             maxLength: 10,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Mobile number is required';
+              if (v == null || v.trim().isEmpty) {
+                return 'Mobile number is required';
+              }
               if (!RegExp(r'^[6-9]\d{9}$').hasMatch(v.trim())) {
                 return 'Enter a valid 10-digit number starting with 6-9';
               }
@@ -399,7 +422,11 @@ class _PhoneInputView extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.phone_android_rounded, color: _muted, size: 19),
+                    const Icon(
+                      Icons.phone_android_rounded,
+                      color: _muted,
+                      size: 19,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       '+91',
@@ -410,19 +437,32 @@ class _PhoneInputView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Container(width: 1, height: 18, color: const Color(0xFFDDE0E4)),
+                    Container(
+                      width: 1,
+                      height: 18,
+                      color: const Color(0xFFDDE0E4),
+                    ),
                   ],
                 ),
               ),
-              prefixIconConstraints: const BoxConstraints(minWidth: 80, minHeight: 48),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 80,
+                minHeight: 48,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFEBEDF0), width: 1),
+                borderSide: const BorderSide(
+                  color: Color(0xFFEBEDF0),
+                  width: 1,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -461,7 +501,11 @@ class _PhoneInputView extends StatelessWidget {
                 children: [
                   _GradientButton(
                     label: 'Send OTP via WhatsApp',
-                    iconWidget: const FaIcon(FontAwesomeIcons.whatsapp, size: 18, color: Colors.white),
+                    iconWidget: const FaIcon(
+                      FontAwesomeIcons.whatsapp,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                     isLoading: loading,
                     onPressed: onSend,
                     disabled: onCooldown,
@@ -488,7 +532,9 @@ class _PhoneInputView extends StatelessWidget {
           Center(
             child: TextButton(
               onPressed: onClose,
-              style: TextButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              style: TextButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               child: Text(
                 'Cancel',
                 style: GoogleFonts.poppins(
@@ -565,7 +611,10 @@ class _OtpVerifyViewState extends State<_OtpVerifyView> {
     _resendSeconds = seconds > 0 ? seconds : 60;
     _resendTimer?.cancel();
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) { timer.cancel(); return; }
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (_resendSeconds == 0) {
         timer.cancel();
       } else {
@@ -657,9 +706,15 @@ class _OtpVerifyViewState extends State<_OtpVerifyView> {
         const SizedBox(height: 6),
         RichText(
           text: TextSpan(
-            style: GoogleFonts.poppins(fontSize: 13, color: _muted, height: 1.5),
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: _muted,
+              height: 1.5,
+            ),
             children: [
-              const TextSpan(text: 'Enter the 6-digit code sent via WhatsApp to '),
+              const TextSpan(
+                text: 'Enter the 6-digit code sent via WhatsApp to ',
+              ),
               TextSpan(
                 text: masked,
                 style: GoogleFonts.poppins(
@@ -704,7 +759,10 @@ class _OtpVerifyViewState extends State<_OtpVerifyView> {
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFEBEDF0), width: 1),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFEBEDF0),
+                      width: 1,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -736,6 +794,7 @@ class _OtpVerifyViewState extends State<_OtpVerifyView> {
           builder: (context, auth, _) => _GradientButton(
             label: 'Verify & Login',
             icon: Icons.check_rounded,
+            iconColor: Colors.white,
             isLoading: auth.isWaOtpVerifyLoading,
             onPressed: _handleVerify,
           ),
@@ -768,7 +827,9 @@ class _OtpVerifyViewState extends State<_OtpVerifyView> {
         Center(
           child: TextButton(
             onPressed: widget.onBack,
-            style: TextButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            style: TextButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             child: Text(
               'Change number',
               style: GoogleFonts.poppins(
@@ -867,8 +928,14 @@ class _RestaurantNameView extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 14),
               child: Icon(Icons.store_rounded, color: _muted, size: 19),
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 48,
+              minHeight: 48,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
@@ -894,6 +961,7 @@ class _RestaurantNameView extends StatelessWidget {
           builder: (context, auth, _) => _GradientButton(
             label: 'Create Account',
             icon: Icons.store_rounded,
+            iconColor: Colors.white,
             isLoading: auth.isWaOtpVerifyLoading,
             onPressed: onSubmit,
           ),
@@ -903,7 +971,9 @@ class _RestaurantNameView extends StatelessWidget {
         Center(
           child: TextButton(
             onPressed: onBack,
-            style: TextButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            style: TextButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             child: Text(
               'Cancel',
               style: GoogleFonts.poppins(
@@ -965,8 +1035,8 @@ class _GradientButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.iconWidget,
-    this.disabled = false,
     this.iconColor,
+    this.disabled = false,
   });
 
   final String label;
@@ -990,7 +1060,9 @@ class _GradientButton extends StatelessWidget {
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                 ),
-          color: (isLoading || disabled) ? _brand.withValues(alpha: 0.55) : null,
+          color: (isLoading || disabled)
+              ? _brand.withValues(alpha: 0.55)
+              : null,
           borderRadius: BorderRadius.circular(14),
           boxShadow: (isLoading || disabled)
               ? null

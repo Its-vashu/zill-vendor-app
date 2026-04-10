@@ -29,6 +29,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _cuisineCtrl;
   late final TextEditingController _prepTimeCtrl;
   late final TextEditingController _costForTwoCtrl;
+  late final TextEditingController _websiteCtrl;
 
   TimeOfDay? _openingTime;
   TimeOfDay? _closingTime;
@@ -73,6 +74,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _costForTwoCtrl = TextEditingController(
       text: d.costForTwo > 0 ? d.costForTwo.toStringAsFixed(0) : '',
     );
+    _websiteCtrl = TextEditingController(text: d.website);
     _openingTime = _parseTimeOfDay(d.openingTime);
     _closingTime = _parseTimeOfDay(d.closingTime);
     _isPureVeg = d.isPureVeg;
@@ -139,6 +141,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _cuisineCtrl.dispose();
     _prepTimeCtrl.dispose();
     _costForTwoCtrl.dispose();
+    _websiteCtrl.dispose();
     super.dispose();
   }
 
@@ -157,6 +160,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         d.averagePrepTime > 0 ? d.averagePrepTime.toString() : '';
     _costForTwoCtrl.text =
         d.costForTwo > 0 ? d.costForTwo.toStringAsFixed(0) : '';
+    _websiteCtrl.text = d.website;
     setState(() {
       _openingTime = _parseTimeOfDay(d.openingTime);
       _closingTime = _parseTimeOfDay(d.closingTime);
@@ -214,6 +218,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       restaurantType: _restaurantType,
       costForTwo: double.tryParse(_costForTwoCtrl.text.trim()),
       isPureVeg: _isPureVeg,
+      website: _websiteCtrl.text.trim(),
       latitude: _latitude,
       longitude: _longitude,
     );
@@ -342,6 +347,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       }
                     }
                     return null;
+                  },
+                ),
+                const SizedBox(height: AppSizes.md),
+                _buildField(
+                  controller: _websiteCtrl,
+                  label: 'Website (optional)',
+                  hint: 'https://your-restaurant.com',
+                  icon: Icons.language_outlined,
+                  keyboardType: TextInputType.url,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return null;
+                    final url = v.trim();
+                    final ok = RegExp(
+                      r'^(https?:\/\/)?[\w-]+(\.[\w-]+)+[/#?]?.*$',
+                    ).hasMatch(url);
+                    return ok ? null : 'Enter a valid website URL';
                   },
                 ),
                 const SizedBox(height: AppSizes.md),

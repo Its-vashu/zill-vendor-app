@@ -583,29 +583,63 @@ class _AddEditMenuScreenState extends State<AddEditMenuScreen> {
               _sectionLabel('DETAILS'),
               const SizedBox(height: 10),
 
-              // Category dropdown
-              DropdownButtonFormField<int>(
-                initialValue: categories.any((c) => c.id == _categoryId)
-                    ? _categoryId
-                    : null,
-                decoration: _inputDecor('Category'),
-                isExpanded: true,
-                hint: const Text(
-                  'Select a category',
-                  style: TextStyle(
+              // Category dropdown.
+              //
+              // We deliberately use `InputDecorator` + `DropdownButton`
+              // instead of `DropdownButtonFormField` because the latter
+              // does not reliably re-render its label/value when the
+              // parent state changes — leading to the field showing the
+              // selected text inside a borderless gray bar with no label
+              // or chevron. This combo is fully driven by `_categoryId`,
+              // so floating label, hint, border and chevron are all
+              // deterministic regardless of selection state.
+              InputDecorator(
+                isEmpty: _categoryId == null ||
+                    !categories.any((c) => c.id == _categoryId),
+                decoration: _inputDecor('Category').copyWith(
+                  hintText: 'Select a category',
+                  hintStyle: const TextStyle(
                     fontSize: 13,
-                    color: AppColors.textSecondary,
+                    color: AppColors.textHint,
+                  ),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: categories.any((c) => c.id == _categoryId)
+                        ? _categoryId
+                        : null,
+                    isExpanded: true,
+                    isDense: true,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    dropdownColor: AppColors.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    items: categories
+                        .map(
+                          (c) => DropdownMenuItem<int>(
+                            value: c.id,
+                            child: Text(
+                              c.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => _categoryId = v),
                   ),
                 ),
-                items: categories
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.name, overflow: TextOverflow.ellipsis),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _categoryId = v),
               ),
               const SizedBox(height: 12),
 

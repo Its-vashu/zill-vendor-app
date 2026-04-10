@@ -8,6 +8,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/api_endpoints.dart';
+import '../../../core/models/verification_status.dart';
 import '../../../core/services/api_service.dart';
 
 enum ProfileStatus { initial, loading, loaded, error }
@@ -32,6 +33,9 @@ class ProfileData {
   final bool isVerified;
   final bool isActive;
   final bool hasBankAccount;
+  // Verification state machine — mirrors backend `verification_status`
+  // computed in food-delivery-api/vendors/views.py:532-556.
+  final VerificationStatus verificationStatus;
   final String? logoUrl;
   final String? imageUrl;
   // Extra details from backend
@@ -71,6 +75,7 @@ class ProfileData {
     this.isVerified = false,
     this.isActive = false,
     this.hasBankAccount = false,
+    this.verificationStatus = VerificationStatus.pending,
     this.logoUrl,
     this.imageUrl,
     this.cuisineTypes = '',
@@ -110,6 +115,9 @@ class ProfileData {
       isVerified: json['is_verified'] as bool? ?? false,
       isActive: json['is_active'] as bool? ?? false,
       hasBankAccount: json['has_bank_account'] as bool? ?? false,
+      verificationStatus: VerificationStatus.fromApi(
+        json['verification_status'] as String?,
+      ),
       // Backend serializer returns logo_url / image_url (not logo / image)
       logoUrl: json['logo_url'] as String?,
       imageUrl: json['image_url'] as String?,
@@ -182,6 +190,23 @@ class ProfileViewModel extends ChangeNotifier {
   AppErrorType _errorType = AppErrorType.unknown;
   bool _hasLoadedOnce = false;
 
+  /// Backend-computed profile completion percentage (0-100).
+  /// Source: GET /vendors/dashboard/ → profile_completion.percentage,
+  /// derived from 6 fixed sections in
+  /// food-delivery-api/vendors/views.py:1905-1916.
+  /// `null` until the first dashboard fetch resolves.
+  int? _profileCompletionPercentage;
+  int? get profileCompletionPercentage => _profileCompletionPercentage;
+
+  /// Per-section completion map sourced from the same dashboard endpoint
+  /// (`profile_completion.sections`). Keys are the six fixed sections —
+  /// `basic_info`, `images`, `operating_hours`, `delivery_zones`,
+  /// `menu_items`, `categories`. The "Complete Profile" bottom sheet
+  /// uses this to render targeted shortcuts for whatever is still false.
+  Map<String, bool> _profileCompletionSections = const <String, bool>{};
+  Map<String, bool> get profileCompletionSections =>
+      _profileCompletionSections;
+
   // ── Local profile image (picked but not yet uploaded) ───────────
   File? _localProfileImage;
   final ImagePicker _imagePicker = ImagePicker();
@@ -217,28 +242,75 @@ class ProfileViewModel extends ChangeNotifier {
   bool get isSettingsLoading => _settingsStatus == SettingsStatus.loading;
   bool get isSettingsSaving => _settingsStatus == SettingsStatus.saving;
 
-  // ── Fetch profile  GET /api/vendors/profile/ ─────────────────────
+  // ── Fetch profile  GET /api/vendors/profile/ + /api/vendors/dashboard/ ─
+  //
+  // Both endpoints are fetched in parallel:
+  //   • /vendors/profile/   → identity, KYC numbers, verification_status
+  //   • /vendors/dashboard/ → backend-authoritative profile_completion.percentage
+  //
+  // The dashboard call is best-effort: if it fails the profile still loads,
+  // and `profileCompletionPercentage` simply stays at its previous value
+  // (or null on first load).
   Future<void> fetchProfile() async {
     _status = ProfileStatus.loading;
     _errorMessage = null;
     _errorType = AppErrorType.unknown;
     notifyListeners();
 
-    try {
-      final response = await _apiService.get(ApiEndpoints.profile);
-      _data = ProfileData.fromJson(response.data as Map<String, dynamic>);
-      _localProfileImage = null; // Clear local preview — fresh server data is here
-      _status = ProfileStatus.loaded;
-      _hasLoadedOnce = true;
-    } on DioException catch (e) {
-      _errorMessage = _parseError(e);
-      _errorType = _classifyError(e);
+    final results = await Future.wait<dynamic>([
+      _apiService
+          .get(ApiEndpoints.profile)
+          .then<dynamic>((r) => r)
+          .catchError((Object e) => e),
+      _apiService
+          .get(ApiEndpoints.dashboard)
+          .then<dynamic>((r) => r)
+          .catchError((Object e) => e),
+    ]);
+
+    final profileResult = results[0];
+    final dashboardResult = results[1];
+
+    if (profileResult is Response) {
+      try {
+        _data = ProfileData.fromJson(
+          profileResult.data as Map<String, dynamic>,
+        );
+        _localProfileImage = null;
+        _status = ProfileStatus.loaded;
+        _hasLoadedOnce = true;
+      } catch (e) {
+        _errorMessage = 'Failed to parse profile.';
+        _errorType = AppErrorType.unknown;
+        _status = ProfileStatus.error;
+        debugPrint('❌ ProfileViewModel parse error: $e');
+      }
+    } else if (profileResult is DioException) {
+      _errorMessage = _parseError(profileResult);
+      _errorType = _classifyError(profileResult);
       _status = ProfileStatus.error;
-      debugPrint('❌ ProfileViewModel error: ${e.response?.data}');
-    } catch (e) {
-      _errorMessage = 'Failed to load profile.';
-      _errorType = AppErrorType.unknown;
-      _status = ProfileStatus.error;
+      debugPrint('❌ ProfileViewModel error: ${profileResult.response?.data}');
+    }
+
+    if (dashboardResult is Response) {
+      try {
+        final body = dashboardResult.data as Map<String, dynamic>;
+        final completion = body['profile_completion'] as Map<String, dynamic>?;
+        final pct = (completion?['percentage'] as num?)?.toInt();
+        if (pct != null) _profileCompletionPercentage = pct;
+
+        // sections is a map<String, bool>; coerce safely.
+        final rawSections =
+            completion?['sections'] as Map<String, dynamic>?;
+        if (rawSections != null) {
+          _profileCompletionSections = {
+            for (final entry in rawSections.entries)
+              entry.key: entry.value == true,
+          };
+        }
+      } catch (e) {
+        debugPrint('[Profile] dashboard completion parse: $e');
+      }
     }
 
     notifyListeners();

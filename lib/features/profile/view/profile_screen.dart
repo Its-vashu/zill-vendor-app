@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/models/verification_status.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/utils/ui_utils.dart';
 import '../viewmodel/profile_viewmodel.dart';
@@ -101,25 +102,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   builder: (context, vm, _) => ProfileHeaderCard(vm: vm),
                 ),
 
-                // ── KYC Banner (animated fade + size) ────────────────
-                Selector<ProfileViewModel, bool>(
-                  selector: (_, vm) => vm.hasData && !vm.data.isVerified,
-                  builder: (_, show, child) => AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    transitionBuilder: (child, anim) => SizeTransition(
-                      sizeFactor: anim,
-                      child: FadeTransition(opacity: anim, child: child),
-                    ),
-                    child: show
-                        ? KycWarningBanner(
-                            key: const ValueKey('kyc'),
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRouter.kycDocuments,
-                            ),
-                          )
-                        : const SizedBox.shrink(key: ValueKey('no-kyc')),
-                  ),
+                // ── KYC Banner (animated, status-aware) ──────────────
+                // Hidden only when fully approved — mirrors web
+                // dashboard.html:1768 statusConfig logic.
+                Selector<ProfileViewModel,
+                    ({bool hasData, VerificationStatus status})>(
+                  selector: (_, vm) =>
+                      (hasData: vm.hasData, status: vm.data.verificationStatus),
+                  builder: (_, s, _) {
+                    final show = s.hasData && !s.status.hideBanner;
+                    return AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (child, anim) => SizeTransition(
+                        sizeFactor: anim,
+                        child: FadeTransition(opacity: anim, child: child),
+                      ),
+                      child: show
+                          ? KycWarningBanner(
+                              key: ValueKey('kyc-${s.status.name}'),
+                              status: s.status,
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                AppRouter.kycDocuments,
+                              ),
+                            )
+                          : const SizedBox.shrink(key: ValueKey('no-kyc')),
+                    );
+                  },
                 ),
 
                 Padding(
@@ -458,6 +467,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: AppStrings.documentsKyc,
               subtitle: 'Upload & verify business documents',
               isLast: true,
+              // Reactive trailing badge — rebuilds whenever the
+              // verification_status field on ProfileViewModel changes,
+              // and disappears entirely once the vendor is approved.
+              trailing: const _KycMenuStatusBadge(),
               onTap: () => Navigator.pushNamed(
                 context,
                 AppRouter.kycDocuments,
@@ -573,5 +586,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ],
     );
   }
+}
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  KYC menu status badge — soft tinted pill rendered inside the Documents
+//  / KYC menu row. Reads `verification_status` from ProfileViewModel and
+//  collapses to an empty SizedBox once the vendor is approved.
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _KycMenuStatusBadge extends StatelessWidget {
+  const _KycMenuStatusBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<ProfileViewModel,
+        ({bool hasData, VerificationStatus status})>(
+      selector: (_, vm) =>
+          (hasData: vm.hasData, status: vm.data.verificationStatus),
+      builder: (_, s, _) {
+        if (!s.hasData || s.status.hideBanner) {
+          return const SizedBox.shrink();
+        }
+        final color = s.status.accentColor;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withAlpha(30),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            s.status.badgeLabel,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.2,
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

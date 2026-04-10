@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart' show openAppSettings;
+import 'package:permission_handler/permission_handler.dart'
+    show openAppSettings;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -68,51 +69,56 @@ class _KycDocumentsScreenState extends State<KycDocumentsScreen> {
             elevation: 0.5,
           ),
           body: Consumer<KycViewModel>(
-        builder: (context, vm, _) {
-          if (vm.status == KycStatus.loading && vm.documents.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (vm.status == KycStatus.error && vm.documents.isEmpty) {
-            return _ErrorView(
-              message: vm.error ?? 'Something went wrong',
-              onRetry: vm.fetchDocuments,
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: vm.fetchDocuments,
-            color: AppColors.primary,
-            child: ListView(
-              padding: const EdgeInsets.all(AppSizes.md),
-              children: [
-                // Verification summary card
-                if (vm.verificationStatus != null)
-                  _VerificationSummaryCard(status: vm.verificationStatus!),
-                const SizedBox(height: AppSizes.md),
+            builder: (context, vm, _) {
+              if (vm.status == KycStatus.loading && vm.documents.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (vm.status == KycStatus.error && vm.documents.isEmpty) {
+                return _ErrorView(
+                  message: vm.error ?? 'Something went wrong',
+                  onRetry: vm.fetchDocuments,
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: vm.fetchDocuments,
+                color: AppColors.primary,
+                child: ListView(
+                  padding: const EdgeInsets.all(AppSizes.md),
+                  children: [
+                    // Verification summary card
+                    if (vm.verificationStatus != null)
+                      _VerificationSummaryCard(viewModel: vm),
+                    const SizedBox(height: AppSizes.md),
 
-                // ── Required Documents ──
-                const _SectionHeader(
-                  title: 'Required Documents',
-                  subtitle: 'These documents are mandatory for verification',
+                    // ── Info banner (mirrors the blue notice on the web) ──
+                    const _KycInfoBanner(),
+                    const SizedBox(height: AppSizes.md),
+
+                    // ── Required Documents ──
+                    const _SectionHeader(
+                      title: 'Required Documents',
+                      subtitle:
+                          'These documents are mandatory for verification',
+                    ),
+                    const SizedBox(height: AppSizes.sm),
+                    ..._requiredTypes.map((type) => _buildDocCard(vm, type)),
+
+                    const SizedBox(height: AppSizes.lg),
+
+                    // ── Optional Documents ──
+                    const _SectionHeader(
+                      title: 'Optional Documents',
+                      subtitle: 'Upload these for faster verification',
+                    ),
+                    const SizedBox(height: AppSizes.sm),
+                    ..._optionalTypes.map((type) => _buildDocCard(vm, type)),
+
+                    const SizedBox(height: AppSizes.xl),
+                  ],
                 ),
-                const SizedBox(height: AppSizes.sm),
-                ..._requiredTypes.map((type) => _buildDocCard(vm, type)),
-
-                const SizedBox(height: AppSizes.lg),
-
-                // ── Optional Documents ──
-                const _SectionHeader(
-                  title: 'Optional Documents',
-                  subtitle: 'Upload these for faster verification',
-                ),
-                const SizedBox(height: AppSizes.sm),
-                ..._optionalTypes.map((type) => _buildDocCard(vm, type)),
-
-                const SizedBox(height: AppSizes.xl),
-              ],
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -164,11 +170,7 @@ class _KycDocumentsScreenState extends State<KycDocumentsScreen> {
     }
   }
 
-  void _confirmDelete(
-    BuildContext context,
-    KycViewModel vm,
-    KycDocument doc,
-  ) {
+  void _confirmDelete(BuildContext context, KycViewModel vm, KycDocument doc) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -196,8 +198,9 @@ class _KycDocumentsScreenState extends State<KycDocumentsScreen> {
                           ? 'Document deleted'
                           : vm.error ?? 'Delete failed',
                     ),
-                    backgroundColor:
-                        success ? AppColors.success : AppColors.error,
+                    backgroundColor: success
+                        ? AppColors.success
+                        : AppColors.error,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppSizes.radiusSm),
@@ -294,8 +297,10 @@ class _KycDocumentsScreenState extends State<KycDocumentsScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                      borderSide:
-                          const BorderSide(color: AppColors.primary, width: 2),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 2,
+                      ),
                     ),
                   ),
                   validator: (v) =>
@@ -473,66 +478,53 @@ class _KycDocumentsScreenState extends State<KycDocumentsScreen> {
 // WIDGETS
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// White verification status card mirroring the web KYC page header.
+/// Title on the left, status pill on the right, gradient progress bar
+/// underneath, and a single-line subtitle explaining the count.
 class _VerificationSummaryCard extends StatelessWidget {
-  final KycVerificationStatus status;
+  final KycViewModel viewModel;
 
-  const _VerificationSummaryCard({required this.status});
+  const _VerificationSummaryCard({required this.viewModel});
 
   @override
   Widget build(BuildContext context) {
-    final progress = status.totalRequired > 0
-        ? status.verified / status.totalRequired
-        : 0.0;
+    final status = viewModel.verificationStatus!;
+    final progress = viewModel.requiredDocumentsUploadProgress;
+    final uploaded = viewModel.uploadedRequiredDocumentCount;
+    final total = viewModel.totalRequiredDocumentCount;
+
+    final _SummaryTone tone = _toneFor(status, uploaded, total);
 
     return Container(
       padding: const EdgeInsets.all(AppSizes.md),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: status.isFullyVerified
-              ? [AppColors.success, AppColors.success.withAlpha(200)]
-              : [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                status.isFullyVerified
-                    ? Icons.verified_rounded
-                    : Icons.shield_outlined,
-                color: Colors.white,
-                size: AppSizes.iconLg,
-              ),
-              const SizedBox(width: AppSizes.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      status.isFullyVerified
-                          ? 'Fully Verified'
-                          : 'Verification In Progress',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: AppSizes.fontLg,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      '${status.verified} of ${status.totalRequired} required documents verified',
-                      style: TextStyle(
-                        color: Colors.white.withAlpha(200),
-                        fontSize: AppSizes.fontSm,
-                      ),
-                    ),
-                  ],
+              const Expanded(
+                child: Text(
+                  'Verification Status',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: AppSizes.fontLg,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
+              _StatusPill(label: tone.label, color: tone.pillColor),
             ],
           ),
           const SizedBox(height: AppSizes.sm),
@@ -540,12 +532,141 @@ class _VerificationSummaryCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSizes.radiusFull),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 6,
-              backgroundColor: Colors.white.withAlpha(60),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              minHeight: 8,
+              backgroundColor: AppColors.borderLight,
+              valueColor: AlwaysStoppedAnimation<Color>(tone.barColor),
+            ),
+          ),
+          const SizedBox(height: AppSizes.xs + 2),
+          Text(
+            tone.subtitle,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: AppSizes.fontSm,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  _SummaryTone _toneFor(
+    KycVerificationStatus status,
+    int uploaded,
+    int total,
+  ) {
+    if (status.isFullyVerified) {
+      return const _SummaryTone(
+        label: 'Verified',
+        pillColor: AppColors.success,
+        barColor: AppColors.success,
+        subtitle: 'All documents verified',
+      );
+    }
+    if (uploaded == 0) {
+      return _SummaryTone(
+        label: 'Pending',
+        pillColor: AppColors.error,
+        barColor: AppColors.error,
+        subtitle: '$uploaded of $total required documents uploaded',
+      );
+    }
+    if (uploaded < total) {
+      return _SummaryTone(
+        label: 'In Progress',
+        pillColor: AppColors.warning,
+        barColor: AppColors.warning,
+        subtitle: '$uploaded of $total required documents uploaded',
+      );
+    }
+    return _SummaryTone(
+      label: 'Under Review',
+      pillColor: AppColors.info,
+      barColor: AppColors.info,
+      subtitle: '$total documents under review',
+    );
+  }
+}
+
+class _SummaryTone {
+  final String label;
+  final Color pillColor;
+  final Color barColor;
+  final String subtitle;
+  const _SummaryTone({
+    required this.label,
+    required this.pillColor,
+    required this.barColor,
+    required this.subtitle,
+  });
+}
+
+/// Light info banner shown below the verification card on the KYC page.
+/// Mirrors the blue info row on the web KYC layout.
+class _KycInfoBanner extends StatelessWidget {
+  const _KycInfoBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.md),
+      decoration: BoxDecoration(
+        color: AppColors.infoLight,
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(color: AppColors.info.withAlpha(60)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: AppColors.info,
+          ),
+          const SizedBox(width: AppSizes.sm),
+          Expanded(
+            child: Text(
+              'Upload all required documents for verification. Your '
+              'restaurant will be activated once all documents are '
+              'verified by our team.',
+              style: TextStyle(
+                fontSize: AppSizes.fontSm,
+                color: AppColors.info.withAlpha(220),
+                height: 1.35,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Filled rounded pill — used for both the summary card and individual
+/// document cards. Soft tinted background + bold colored label.
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusPill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(30),
+        borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }
@@ -572,14 +693,17 @@ class _DocumentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUploaded = document != null;
     final isUploading = uploadProgress?.isUploading ?? false;
+    final isRejected = document?.isRejected == true;
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        // Border stays neutral except for rejected documents — matches the
+        // soft "all-cards-look-the-same" aesthetic of the web layout.
         border: Border.all(
-          color: _borderColor,
-          width: document?.isRejected == true ? 1.5 : 1.0,
+          color: isRejected ? AppColors.error : AppColors.border,
+          width: isRejected ? 1.5 : 1.0,
         ),
         boxShadow: const [
           BoxShadow(
@@ -594,84 +718,67 @@ class _DocumentCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(AppSizes.md),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Document icon
+                // Document icon — neutral tinted square; no status colour.
                 Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: _iconBgColor,
+                    color: AppColors.primary.withAlpha(20),
                     borderRadius: BorderRadius.circular(AppSizes.radiusSm),
                   ),
                   child: Icon(
                     _iconData,
-                    color: _iconColor,
+                    color: AppColors.primary,
                     size: AppSizes.iconMd,
                   ),
                 ),
                 const SizedBox(width: AppSizes.sm),
-                // Name + status
+                // Title + description
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              documentType.displayName,
-                              style: const TextStyle(
-                                fontSize: AppSizes.fontMd,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          if (documentType.isRequired) ...[
-                            const SizedBox(width: AppSizes.xs),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.error.withAlpha(25),
-                                borderRadius:
-                                    BorderRadius.circular(AppSizes.xs),
-                              ),
-                              child: const Text(
-                                'Required',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.error,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                      Text(
+                        documentType.displayName,
+                        style: const TextStyle(
+                          fontSize: AppSizes.fontMd,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 2),
-                      if (isUploaded) ...[
-                        _StatusBadge(status: document!.status),
-                      ] else ...[
-                        Text(
-                          'Not uploaded',
-                          style: TextStyle(
-                            fontSize: AppSizes.fontSm,
-                            color: AppColors.textHint,
-                          ),
+                      Text(
+                        documentType.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: AppSizes.fontXs + 1,
+                          color: AppColors.textHint,
+                          height: 1.3,
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
-                // Action button
-                _ActionButton(
-                  document: document,
-                  isUploading: isUploading,
-                  onTap: onUpload,
-                ),
+                const SizedBox(width: AppSizes.xs),
+                // Top-right pill — status if uploaded, "Upload" CTA otherwise.
+                if (isUploading)
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                else if (isRejected)
+                  _ReUploadPillButton(onTap: onUpload)
+                else if (isUploaded)
+                  _StatusPill(
+                    label: _statusLabel(document!.status),
+                    color: _statusColor(document!.status),
+                  )
+                else
+                  _UploadPillButton(onTap: onUpload),
               ],
             ),
           ),
@@ -680,7 +787,10 @@ class _DocumentCard extends StatelessWidget {
           if (isUploaded && !isUploading)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppSizes.md, 0, AppSizes.md, AppSizes.sm,
+                AppSizes.md,
+                0,
+                AppSizes.md,
+                AppSizes.sm,
               ),
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -695,7 +805,9 @@ class _DocumentCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      _isFilePdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
+                      _isFilePdf
+                          ? Icons.picture_as_pdf_rounded
+                          : Icons.image_rounded,
                       size: 20,
                       color: _isFilePdf ? AppColors.error : AppColors.primary,
                     ),
@@ -847,39 +959,25 @@ class _DocumentCard extends StatelessWidget {
         '${date.year}';
   }
 
-  Color get _borderColor {
-    if (document == null) return AppColors.border;
-    switch (document!.status) {
+  String _statusLabel(KycDocStatus status) {
+    switch (status) {
+      case KycDocStatus.verified:
+        return 'Verified';
+      case KycDocStatus.rejected:
+        return 'Rejected';
+      case KycDocStatus.pending:
+        return 'Under Review';
+    }
+  }
+
+  Color _statusColor(KycDocStatus status) {
+    switch (status) {
       case KycDocStatus.verified:
         return AppColors.success;
       case KycDocStatus.rejected:
         return AppColors.error;
       case KycDocStatus.pending:
-        return AppColors.warning;
-    }
-  }
-
-  Color get _iconBgColor {
-    if (document == null) return AppColors.background;
-    switch (document!.status) {
-      case KycDocStatus.verified:
-        return AppColors.successLight;
-      case KycDocStatus.rejected:
-        return AppColors.errorLight;
-      case KycDocStatus.pending:
-        return AppColors.warningLight;
-    }
-  }
-
-  Color get _iconColor {
-    if (document == null) return AppColors.textHint;
-    switch (document!.status) {
-      case KycDocStatus.verified:
-        return AppColors.success;
-      case KycDocStatus.rejected:
-        return AppColors.error;
-      case KycDocStatus.pending:
-        return AppColors.warning;
+        return AppColors.info;
     }
   }
 
@@ -903,158 +1001,79 @@ class _DocumentCard extends StatelessWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final KycDocStatus status;
-
-  const _StatusBadge({required this.status});
+/// Filled "Upload" pill — shown on a fresh, never-uploaded document card.
+/// Compact rounded button so it sits next to the `_StatusPill` slot.
+class _UploadPillButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _UploadPillButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: _dotColor,
-            shape: BoxShape.circle,
-          ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(AppSizes.radiusFull),
         ),
-        const SizedBox(width: AppSizes.xs),
-        Text(
-          _label,
-          style: TextStyle(
-            fontSize: AppSizes.fontSm,
-            fontWeight: FontWeight.w500,
-            color: _dotColor,
-          ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.upload_rounded, size: 14, color: Colors.white),
+            SizedBox(width: 4),
+            Text(
+              'Upload',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
-  }
-
-  Color get _dotColor {
-    switch (status) {
-      case KycDocStatus.verified:
-        return AppColors.success;
-      case KycDocStatus.rejected:
-        return AppColors.error;
-      case KycDocStatus.pending:
-        return AppColors.warning;
-    }
-  }
-
-  String get _label {
-    switch (status) {
-      case KycDocStatus.verified:
-        return 'Verified';
-      case KycDocStatus.rejected:
-        return 'Rejected';
-      case KycDocStatus.pending:
-        return 'Pending Review';
-    }
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final KycDocument? document;
-  final bool isUploading;
+/// Compact "Re-Upload" pill — shown on a rejected document card so the
+/// re-upload action stays discoverable without bringing back loud red
+/// buttons or borders.
+class _ReUploadPillButton extends StatelessWidget {
   final VoidCallback onTap;
-
-  const _ActionButton({
-    this.document,
-    required this.isUploading,
-    required this.onTap,
-  });
+  const _ReUploadPillButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    if (isUploading) {
-      return const SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(strokeWidth: 2.5),
-      );
-    }
-
-    // Not uploaded yet
-    if (document == null) {
-      return ElevatedButton.icon(
-        onPressed: onTap,
-        icon: const Icon(Icons.upload_rounded, size: 18),
-        label: const Text('Upload'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          minimumSize: Size.zero,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-          ),
-          textStyle: const TextStyle(
-            fontSize: AppSizes.fontSm,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    }
-
-    // Rejected → Re-Upload button (highly visible)
-    if (document!.isRejected) {
-      return ElevatedButton.icon(
-        onPressed: onTap,
-        icon: const Icon(Icons.refresh_rounded, size: 18),
-        label: const Text('Re-Upload'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.error,
-          foregroundColor: Colors.white,
-          minimumSize: Size.zero,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-          ),
-          textStyle: const TextStyle(
-            fontSize: AppSizes.fontSm,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    }
-
-    // Verified → checkmark
-    if (document!.isVerified) {
-      return Container(
-        padding: const EdgeInsets.all(AppSizes.sm),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.successLight,
-          shape: BoxShape.circle,
+          color: AppColors.error,
+          borderRadius: BorderRadius.circular(AppSizes.radiusFull),
         ),
-        child: const Icon(
-          Icons.check_rounded,
-          color: AppColors.success,
-          size: 20,
-        ),
-      );
-    }
-
-    // Pending → "Uploaded" label with option to re-upload
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.warning,
-        side: const BorderSide(color: AppColors.warning),
-        minimumSize: Size.zero,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-        ),
-        textStyle: const TextStyle(
-          fontSize: AppSizes.fontSm,
-          fontWeight: FontWeight.w600,
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.refresh_rounded, size: 14, color: Colors.white),
+            SizedBox(width: 4),
+            Text(
+              'Re-Upload',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
         ),
       ),
-      child: const Text('Uploaded'),
     );
   }
 }

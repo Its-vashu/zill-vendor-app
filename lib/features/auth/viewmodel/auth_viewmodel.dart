@@ -10,6 +10,7 @@ import '../../../core/services/push_notification_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/websocket_service.dart';
 import '../../../core/utils/app_logger.dart';
+import '../../kyc/services/setup_onboarding_service.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
@@ -18,6 +19,7 @@ class AuthViewModel extends ChangeNotifier {
   final StorageService _storageService;
   final PushNotificationService _pushService;
   final WebSocketService _wsService;
+  late final SetupOnboardingService _setupOnboardingService;
 
   AuthStatus _status = AuthStatus.initial;
   String? _errorMessage;
@@ -31,7 +33,9 @@ class AuthViewModel extends ChangeNotifier {
   }) : _apiService = apiService,
        _storageService = storageService,
        _pushService = pushService,
-       _wsService = wsService;
+       _wsService = wsService {
+    _setupOnboardingService = SetupOnboardingService(apiService: _apiService);
+  }
 
   // Getters
   AuthStatus get status => _status;
@@ -66,6 +70,23 @@ class AuthViewModel extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  Future<bool> requiresSetupOnboarding() async {
+    if (!isAuthenticated) {
+      return false;
+    }
+
+    try {
+      final onboardingState = await _setupOnboardingService.fetchState();
+      return !onboardingState.isSetupComplete;
+    } on SetupOnboardingException catch (e) {
+      AppLogger.w('[Auth] Onboarding status unavailable: ${e.message}');
+      return false;
+    } catch (e, st) {
+      AppLogger.e('[Auth] Failed to resolve onboarding route', e, st);
+      return false;
+    }
   }
 
   // ----------------------------------------------------------------
@@ -145,12 +166,20 @@ class AuthViewModel extends ChangeNotifier {
           waitSeconds = (data['wait_time'] as num?)?.toInt() ?? 60;
         }
       }
-      return (success: false, message: _parseWaOtpError(e), waitSeconds: waitSeconds);
+      return (
+        success: false,
+        message: _parseWaOtpError(e),
+        waitSeconds: waitSeconds,
+      );
     } catch (e) {
       AppLogger.e('WA OTP SEND UNEXPECTED: $e');
       _waOtpSendLoading = false;
       notifyListeners();
-      return (success: false, message: 'Unexpected error. Please try again.', waitSeconds: 0);
+      return (
+        success: false,
+        message: 'Unexpected error. Please try again.',
+        waitSeconds: 0,
+      );
     }
   }
 
@@ -195,7 +224,11 @@ class AuthViewModel extends ChangeNotifier {
       // New vendor needs to provide restaurant name — not a login yet
       if (action == 'register_required') {
         notifyListeners();
-        return (success: true, message: body['message']?.toString() ?? '', action: action);
+        return (
+          success: true,
+          message: body['message']?.toString() ?? '',
+          action: action,
+        );
       }
 
       // Existing vendor login or new vendor just registered
@@ -236,12 +269,18 @@ class AuthViewModel extends ChangeNotifier {
       AppLogger.e('WA OTP VERIFY UNEXPECTED: $e');
       _waOtpVerifyLoading = false;
       notifyListeners();
-      return (success: false, message: 'Unexpected error. Please try again.', action: '');
+      return (
+        success: false,
+        message: 'Unexpected error. Please try again.',
+        action: '',
+      );
     }
   }
 
   String _parseWaOtpError(DioException e) {
-    if (e.response == null) return 'Network error. Please check your connection.';
+    if (e.response == null) {
+      return 'Network error. Please check your connection.';
+    }
     final data = e.response!.data;
     if (data is Map<String, dynamic>) {
       final msg = _parseErrorBody(data);
@@ -313,7 +352,9 @@ class AuthViewModel extends ChangeNotifier {
         if (errors.containsKey('error')) return errors['error'].toString();
         if (errors.containsKey('non_field_errors')) {
           final nfe = errors['non_field_errors'];
-          return (nfe is List && nfe.isNotEmpty) ? nfe.first.toString() : nfe.toString();
+          return (nfe is List && nfe.isNotEmpty)
+              ? nfe.first.toString()
+              : nfe.toString();
         }
         final firstVal = errors.values.first;
         return (firstVal is List && firstVal.isNotEmpty)
@@ -325,7 +366,9 @@ class AuthViewModel extends ChangeNotifier {
     // { "non_field_errors": ["..."] }
     if (data.containsKey('non_field_errors')) {
       final nfe = data['non_field_errors'];
-      return (nfe is List && nfe.isNotEmpty) ? nfe.first.toString() : nfe.toString();
+      return (nfe is List && nfe.isNotEmpty)
+          ? nfe.first.toString()
+          : nfe.toString();
     }
 
     // Field-level list errors — otp, phone

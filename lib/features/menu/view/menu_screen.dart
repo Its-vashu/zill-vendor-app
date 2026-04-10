@@ -106,15 +106,7 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
           appBar: inSelect
               ? _buildSelectionAppBar(vm)
               : _buildNormalAppBar(vm, cats),
-          floatingActionButton: inSelect
-              ? null
-              : FloatingActionButton(
-                  onPressed: () => _goToAddEdit(),
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  tooltip: 'Add Item',
-                  child: const Icon(Icons.add),
-                ),
+          floatingActionButton: inSelect ? null : _buildMenuFab(),
           bottomNavigationBar:
               inSelect ? _BulkActionBar(vm: vm) : null,
           body: Column(
@@ -174,6 +166,117 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
     });
   }
 
+  // ── Bulk upload screen launcher ───────────────────────────────────
+  void _goToBulkUpload() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BulkUploadScreen()),
+    ).then((_) {
+      if (mounted) context.read<MenuViewModel>().fetchMenu();
+    });
+  }
+
+  // ── Manage Categories screen launcher ─────────────────────────────
+  void _goToManageCategories() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ManageCategoriesScreen()),
+    ).then((_) {
+      if (mounted) context.read<MenuViewModel>().fetchMenu();
+    });
+  }
+
+  // ── Menu Actions bottom sheet ─────────────────────────────────────
+  // Single FAB → modal bottom sheet with three actions, mirroring the
+  // web Menu Management "+" stack. Each tile closes the sheet first
+  // and runs its action on the next frame so the navigation animation
+  // doesn't fight with the sheet dismissal.
+  void _showMenuActionsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) {
+        void runAction(VoidCallback action) {
+          Navigator.of(sheetCtx).pop();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) action();
+          });
+        }
+
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag handle
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 6),
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Header
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 10, 20, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Menu Actions',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                _MenuActionTile(
+                  icon: Icons.restaurant_menu,
+                  title: 'Add Menu Item',
+                  subtitle: 'Create a new dish or product',
+                  onTap: () => runAction(() => _goToAddEdit()),
+                ),
+                _MenuActionTile(
+                  icon: Icons.category_outlined,
+                  title: 'Manage Categories',
+                  subtitle: 'Create, edit or reorder categories',
+                  onTap: () => runAction(_goToManageCategories),
+                ),
+                _MenuActionTile(
+                  icon: Icons.upload_file_outlined,
+                  title: 'Bulk Upload Menu',
+                  subtitle: 'Import multiple items via CSV',
+                  onTap: () => runAction(_goToBulkUpload),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Shared FAB used across loaded / empty / error states ──────────
+  Widget _buildMenuFab() {
+    return FloatingActionButton(
+      onPressed: _showMenuActionsSheet,
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      tooltip: 'Menu actions',
+      child: const Icon(Icons.add, size: 28),
+    );
+  }
+
   // ── Normal AppBar ──────────────────────────────────────────────────
   AppBar _buildNormalAppBar(MenuViewModel vm, List<MenuCategory> cats) {
     return AppBar(
@@ -200,18 +303,6 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
       ),
       actions: [
         IconButton(
-          tooltip: 'Bulk CSV Upload',
-          icon: const Icon(Icons.upload_file_rounded, size: 22),
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const BulkUploadScreen(),
-            ),
-          ).then((_) {
-            if (mounted) context.read<MenuViewModel>().fetchMenu();
-          }),
-        ),
-        IconButton(
           tooltip: 'Bulk Select',
           icon: const Icon(Icons.checklist_rounded, size: 22),
           onPressed: vm.toggleSelectionMode,
@@ -219,12 +310,7 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
         IconButton(
           tooltip: 'Manage Categories',
           icon: const Icon(Icons.category_outlined, size: 22),
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const ManageCategoriesScreen(),
-            ),
-          ),
+          onPressed: _goToManageCategories,
         ),
         const SizedBox(width: 4),
       ],
@@ -304,13 +390,7 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _goToAddEdit(),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        tooltip: 'Add Item',
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _buildMenuFab(),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -372,13 +452,7 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _goToAddEdit(),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        tooltip: 'Add Item',
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _buildMenuFab(),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -401,7 +475,8 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Tap the ➕ button below to add your first menu item.',
+                'Tap the ➕ button to add an item, create a category, '
+                'or bulk-upload your menu.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -424,6 +499,78 @@ class _MenuScreenState extends State<MenuScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────
+//  Menu Action Tile — used inside the "Menu Actions" bottom sheet
+//  triggered by the menu screen FAB. Tinted icon + title + subtitle +
+//  trailing chevron, with a tappable ink ripple over the whole row.
+// ────────────────────────────────────────────────────────────────────
+class _MenuActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _MenuActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            // Tinted square icon — primary brand colour pop.
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withAlpha(28),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textHint,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textHint,
+              size: 22,
+            ),
+          ],
         ),
       ),
     );

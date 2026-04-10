@@ -8,6 +8,7 @@ import '../../features/subscription/view/my_subscription_screen.dart';
 import '../../features/subscription/view/invoice_history_screen.dart';
 import '../../features/orders/view/incoming_order_screen.dart';
 import '../../features/kyc/view/kyc_documents_screen.dart';
+import '../../features/kyc/view/setup_onboarding_screen.dart';
 import '../../features/support/view/chat_screen.dart';
 import '../../features/support/view/ticket_detail_screen.dart';
 import '../../features/delivery_zones/view/delivery_zones_screen.dart';
@@ -18,6 +19,7 @@ class AppRouter {
   static const String splash = '/';
   static const String login = '/login';
   static const String home = '/home';
+  static const String setupOnboarding = '/setup-onboarding';
   static const String notifications = '/notifications';
   static const String subscriptionPlans = '/subscription/plans';
   static const String mySubscription = '/subscription/my';
@@ -37,6 +39,8 @@ class AppRouter {
         return _fadeRoute(const LoginScreen(), settings);
       case home:
         return _fadeRoute(const AppShell(), settings);
+      case setupOnboarding:
+        return _fadeRoute(const SetupOnboardingScreen(), settings);
       case notifications:
         return _fadeRoute(const NotificationsScreen(), settings);
       case subscriptionPlans:
@@ -65,17 +69,14 @@ class AppRouter {
         return _fadeRoute(const AddonGroupsScreen(), settings);
       case incomingOrder:
         final orderData = settings.arguments as AlarmOrderData?;
-        if (orderData == null) return _fadeRoute(const SizedBox.shrink(), settings);
-        return _fadeRoute(
-          IncomingOrderScreen(orderData: orderData),
-          settings,
-        );
+        if (orderData == null) {
+          return _fadeRoute(const SizedBox.shrink(), settings);
+        }
+        return _fadeRoute(IncomingOrderScreen(orderData: orderData), settings);
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
-            body: Center(
-              child: Text('No route defined for ${settings.name}'),
-            ),
+            body: Center(child: Text('No route defined for ${settings.name}')),
           ),
         );
     }

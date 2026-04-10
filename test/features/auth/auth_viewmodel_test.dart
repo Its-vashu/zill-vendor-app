@@ -26,14 +26,14 @@ Response<dynamic> fakeResponse(dynamic data, {int statusCode = 200}) =>
     );
 
 DioException fakeDioError(int statusCode, dynamic data) => DioException(
-      type: DioExceptionType.badResponse,
-      requestOptions: RequestOptions(path: ''),
-      response: Response(
-        data: data,
-        statusCode: statusCode,
-        requestOptions: RequestOptions(path: ''),
-      ),
-    );
+  type: DioExceptionType.badResponse,
+  requestOptions: RequestOptions(path: ''),
+  response: Response(
+    data: data,
+    statusCode: statusCode,
+    requestOptions: RequestOptions(path: ''),
+  ),
+);
 
 // WhatsApp OTP login response (existing vendor — action: "login")
 const kWaOtpLoginBody = {
@@ -109,16 +109,19 @@ void main() {
   // checkAuthStatus
   // ─────────────────────────────────────────────────────────────────────────
   group('checkAuthStatus', () {
-    test('sets authenticated + username when tokens exist in storage', () async {
-      when(() => storage.hasTokens()).thenAnswer((_) async => true);
-      when(() => storage.getUsername()).thenAnswer((_) async => 'raj_vendor');
+    test(
+      'sets authenticated + username when tokens exist in storage',
+      () async {
+        when(() => storage.hasTokens()).thenAnswer((_) async => true);
+        when(() => storage.getUsername()).thenAnswer((_) async => 'raj_vendor');
 
-      await vm.checkAuthStatus();
+        await vm.checkAuthStatus();
 
-      expect(vm.status, AuthStatus.authenticated);
-      expect(vm.username, 'raj_vendor');
-      expect(vm.isAuthenticated, isTrue);
-    });
+        expect(vm.status, AuthStatus.authenticated);
+        expect(vm.username, 'raj_vendor');
+        expect(vm.isAuthenticated, isTrue);
+      },
+    );
 
     test('sets unauthenticated when no tokens in storage', () async {
       when(() => storage.hasTokens()).thenAnswer((_) async => false);
@@ -152,6 +155,97 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
   // requestWhatsAppOtp
   // ─────────────────────────────────────────────────────────────────────────
+  group('requiresSetupOnboarding', () {
+    setUp(() {
+      when(() => api.get(any())).thenAnswer((invocation) async {
+        final path = invocation.positionalArguments.first as String;
+        switch (path) {
+          case '/vendors/profile/':
+            return fakeResponse({
+              'success': true,
+              'verification_status': 'submitted',
+              'is_verified': false,
+            });
+          case '/vendors/documents/':
+            return fakeResponse({
+              'documents': [
+                {'document_type': 'fssai'},
+                {'document_type': 'pan'},
+                {'document_type': 'bank'},
+              ],
+            });
+          case '/vendors/subscription/my/':
+            return fakeResponse({
+              'has_subscription': true,
+              'subscription': {'status': 'active'},
+            });
+          default:
+            throw Exception('Unexpected GET path: $path');
+        }
+      });
+    });
+
+    test('returns false when setup is fully complete', () async {
+      when(() => storage.hasTokens()).thenAnswer((_) async => true);
+      when(() => storage.getUsername()).thenAnswer((_) async => 'raj_vendor');
+
+      await vm.checkAuthStatus();
+      final requiresSetup = await vm.requiresSetupOnboarding();
+
+      expect(requiresSetup, isFalse);
+    });
+
+    test('returns true when required documents are still missing', () async {
+      when(() => api.get('/vendors/documents/')).thenAnswer(
+        (_) async => fakeResponse({
+          'documents': [
+            {'document_type': 'fssai'},
+            {'document_type': 'pan'},
+          ],
+        }),
+      );
+
+      when(() => storage.hasTokens()).thenAnswer((_) async => true);
+      when(() => storage.getUsername()).thenAnswer((_) async => 'raj_vendor');
+
+      await vm.checkAuthStatus();
+      final requiresSetup = await vm.requiresSetupOnboarding();
+
+      expect(requiresSetup, isTrue);
+    });
+
+    test('returns true when subscription is missing', () async {
+      when(
+        () => api.get('/vendors/subscription/my/'),
+      ).thenAnswer((_) async => fakeResponse({'has_subscription': false}));
+
+      when(() => storage.hasTokens()).thenAnswer((_) async => true);
+      when(() => storage.getUsername()).thenAnswer((_) async => 'raj_vendor');
+
+      await vm.checkAuthStatus();
+      final requiresSetup = await vm.requiresSetupOnboarding();
+
+      expect(requiresSetup, isTrue);
+    });
+
+    test(
+      'returns false on onboarding lookup failure to avoid false lockout',
+      () async {
+        when(
+          () => api.get('/vendors/documents/'),
+        ).thenThrow(fakeDioError(500, {'message': 'server error'}));
+
+        when(() => storage.hasTokens()).thenAnswer((_) async => true);
+        when(() => storage.getUsername()).thenAnswer((_) async => 'raj_vendor');
+
+        await vm.checkAuthStatus();
+        final requiresSetup = await vm.requiresSetupOnboarding();
+
+        expect(requiresSetup, isFalse);
+      },
+    );
+  });
+
   group('requestWhatsAppOtp', () {
     test('returns success on 200', () async {
       when(() => api.post(any(), data: any(named: 'data'))).thenAnswer(
@@ -165,8 +259,9 @@ void main() {
     });
 
     test('returns failure with wait_time on 429 (rate limited)', () async {
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenThrow(fakeDioError(429, {'wait_time': 45}));
+      when(
+        () => api.post(any(), data: any(named: 'data')),
+      ).thenThrow(fakeDioError(429, {'wait_time': 45}));
 
       final result = await vm.requestWhatsAppOtp(phone: '9876543210');
 
@@ -176,41 +271,45 @@ void main() {
     });
 
     test('trims phone number before sending', () async {
-      when(() => api.post(
-            any(),
-            data: {'phone': '9876543210'},
-          )).thenAnswer((_) async => fakeResponse({'message': 'sent'}));
+      when(
+        () => api.post(any(), data: {'phone': '9876543210'}),
+      ).thenAnswer((_) async => fakeResponse({'message': 'sent'}));
 
       await vm.requestWhatsAppOtp(phone: '  9876543210  ');
 
-      verify(() => api.post(
-            any(),
-            data: {'phone': '9876543210'},
-          )).called(1);
+      verify(() => api.post(any(), data: {'phone': '9876543210'})).called(1);
     });
 
-    test('isWaOtpSendLoading is true during request then false after', () async {
-      final loadingValues = <bool>[];
-      vm.addListener(() => loadingValues.add(vm.isWaOtpSendLoading));
+    test(
+      'isWaOtpSendLoading is true during request then false after',
+      () async {
+        final loadingValues = <bool>[];
+        vm.addListener(() => loadingValues.add(vm.isWaOtpSendLoading));
 
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenAnswer((_) async => fakeResponse({'message': 'sent'}));
+        when(
+          () => api.post(any(), data: any(named: 'data')),
+        ).thenAnswer((_) async => fakeResponse({'message': 'sent'}));
 
-      await vm.requestWhatsAppOtp(phone: '9876543210');
+        await vm.requestWhatsAppOtp(phone: '9876543210');
 
-      expect(loadingValues, contains(true));
-      expect(vm.isWaOtpSendLoading, isFalse);
-    });
+        expect(loadingValues, contains(true));
+        expect(vm.isWaOtpSendLoading, isFalse);
+      },
+    );
 
-    test('returns friendly message on 503 (WhatsApp service unavailable)', () async {
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenThrow(fakeDioError(503, {}));
+    test(
+      'returns friendly message on 503 (WhatsApp service unavailable)',
+      () async {
+        when(
+          () => api.post(any(), data: any(named: 'data')),
+        ).thenThrow(fakeDioError(503, {}));
 
-      final result = await vm.requestWhatsAppOtp(phone: '9876543210');
+        final result = await vm.requestWhatsAppOtp(phone: '9876543210');
 
-      expect(result.success, isFalse);
-      expect(result.message, contains('WhatsApp service unavailable'));
-    });
+        expect(result.success, isFalse);
+        expect(result.message, contains('WhatsApp service unavailable'));
+      },
+    );
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -234,8 +333,9 @@ void main() {
     });
 
     test('returns success and authenticates existing vendor', () async {
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenAnswer((_) async => fakeResponse(kWaOtpLoginBody));
+      when(
+        () => api.post(any(), data: any(named: 'data')),
+      ).thenAnswer((_) async => fakeResponse(kWaOtpLoginBody));
 
       final result = await vm.verifyWhatsAppOtp(
         phone: '9876543210',
@@ -249,8 +349,9 @@ void main() {
     });
 
     test('returns register_required for new vendor (no login yet)', () async {
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenAnswer((_) async => fakeResponse(kWaOtpRegisterRequiredBody));
+      when(
+        () => api.post(any(), data: any(named: 'data')),
+      ).thenAnswer((_) async => fakeResponse(kWaOtpRegisterRequiredBody));
 
       final result = await vm.verifyWhatsAppOtp(
         phone: '9999999999',
@@ -263,25 +364,30 @@ void main() {
       expect(vm.status, isNot(AuthStatus.authenticated));
     });
 
-    test('registers and authenticates new vendor with restaurant name', () async {
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenAnswer((_) async => fakeResponse(kWaOtpRegisteredBody));
+    test(
+      'registers and authenticates new vendor with restaurant name',
+      () async {
+        when(
+          () => api.post(any(), data: any(named: 'data')),
+        ).thenAnswer((_) async => fakeResponse(kWaOtpRegisteredBody));
 
-      final result = await vm.verifyWhatsAppOtp(
-        phone: '9999999999',
-        otp: '654321',
-        restaurantName: 'New Place',
-      );
+        final result = await vm.verifyWhatsAppOtp(
+          phone: '9999999999',
+          otp: '654321',
+          restaurantName: 'New Place',
+        );
 
-      expect(result.success, isTrue);
-      expect(result.action, 'registered');
-      expect(vm.status, AuthStatus.authenticated);
-      expect(vm.username, 'New Place');
-    });
+        expect(result.success, isTrue);
+        expect(result.action, 'registered');
+        expect(vm.status, AuthStatus.authenticated);
+        expect(vm.username, 'New Place');
+      },
+    );
 
     test('saves tokens and user info to storage on login', () async {
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenAnswer((_) async => fakeResponse(kWaOtpLoginBody));
+      when(
+        () => api.post(any(), data: any(named: 'data')),
+      ).thenAnswer((_) async => fakeResponse(kWaOtpLoginBody));
 
       await vm.verifyWhatsAppOtp(phone: '9876543210', otp: '123456');
 
@@ -294,8 +400,9 @@ void main() {
     });
 
     test('returns failure on 400 (invalid OTP)', () async {
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenThrow(fakeDioError(400, {'message': 'Invalid OTP'}));
+      when(
+        () => api.post(any(), data: any(named: 'data')),
+      ).thenThrow(fakeDioError(400, {'message': 'Invalid OTP'}));
 
       final result = await vm.verifyWhatsAppOtp(
         phone: '9876543210',
@@ -323,18 +430,22 @@ void main() {
       expect(result.message, contains('Network error'));
     });
 
-    test('isWaOtpVerifyLoading is true during request then false after', () async {
-      final loadingValues = <bool>[];
-      vm.addListener(() => loadingValues.add(vm.isWaOtpVerifyLoading));
+    test(
+      'isWaOtpVerifyLoading is true during request then false after',
+      () async {
+        final loadingValues = <bool>[];
+        vm.addListener(() => loadingValues.add(vm.isWaOtpVerifyLoading));
 
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenAnswer((_) async => fakeResponse(kWaOtpLoginBody));
+        when(
+          () => api.post(any(), data: any(named: 'data')),
+        ).thenAnswer((_) async => fakeResponse(kWaOtpLoginBody));
 
-      await vm.verifyWhatsAppOtp(phone: '9876543210', otp: '123456');
+        await vm.verifyWhatsAppOtp(phone: '9876543210', otp: '123456');
 
-      expect(loadingValues, contains(true));
-      expect(vm.isWaOtpVerifyLoading, isFalse);
-    });
+        expect(loadingValues, contains(true));
+        expect(vm.isWaOtpVerifyLoading, isFalse);
+      },
+    );
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -342,10 +453,12 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
   group('logout', () {
     test('clears storage and sets status to unauthenticated', () async {
-      when(() => storage.getRefreshToken())
-          .thenAnswer((_) async => 'ref_token_456');
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenAnswer((_) async => fakeResponse({'message': 'logged out'}));
+      when(
+        () => storage.getRefreshToken(),
+      ).thenAnswer((_) async => 'ref_token_456');
+      when(
+        () => api.post(any(), data: any(named: 'data')),
+      ).thenAnswer((_) async => fakeResponse({'message': 'logged out'}));
       when(() => storage.clearAll()).thenAnswer((_) async {});
 
       await vm.logout();
@@ -355,18 +468,23 @@ void main() {
       verify(() => storage.clearAll()).called(1);
     });
 
-    test('still clears local storage even when logout API call fails', () async {
-      when(() => storage.getRefreshToken())
-          .thenAnswer((_) async => 'ref_token_456');
-      when(() => api.post(any(), data: any(named: 'data')))
-          .thenThrow(fakeDioError(500, {}));
-      when(() => storage.clearAll()).thenAnswer((_) async {});
+    test(
+      'still clears local storage even when logout API call fails',
+      () async {
+        when(
+          () => storage.getRefreshToken(),
+        ).thenAnswer((_) async => 'ref_token_456');
+        when(
+          () => api.post(any(), data: any(named: 'data')),
+        ).thenThrow(fakeDioError(500, {}));
+        when(() => storage.clearAll()).thenAnswer((_) async {});
 
-      await vm.logout();
+        await vm.logout();
 
-      expect(vm.status, AuthStatus.unauthenticated);
-      verify(() => storage.clearAll()).called(1);
-    });
+        expect(vm.status, AuthStatus.unauthenticated);
+        verify(() => storage.clearAll()).called(1);
+      },
+    );
 
     test('unregisters FCM push token on logout', () async {
       when(() => storage.getRefreshToken()).thenAnswer((_) async => null);

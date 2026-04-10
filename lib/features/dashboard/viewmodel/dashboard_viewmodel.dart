@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/constants/api_endpoints.dart';
+import '../../../core/models/verification_status.dart';
 import '../../../core/services/api_service.dart';
 
 enum DashboardStatus { initial, loading, loaded, error }
@@ -93,6 +94,8 @@ class DashboardData {
   final bool isStoreOpen;
   final String storeName;
   final bool isVerified;
+  /// `restaurant.is_active` — false if admin has disabled the restaurant.
+  final bool isActive;
   // 3-state status: 'online', 'busy', 'offline'
   final String storeStatus;
   // menu stats
@@ -113,6 +116,7 @@ class DashboardData {
     this.isStoreOpen = false,
     this.storeName = '',
     this.isVerified = false,
+    this.isActive = true,
     this.storeStatus = 'offline',
     this.totalItems = 0,
     this.availableItems = 0,
@@ -143,6 +147,7 @@ class DashboardData {
       isStoreOpen: storeStatus == 'online',
       storeName: restaurant['name'] as String? ?? '',
       isVerified: restaurant['is_verified'] as bool? ?? false,
+      isActive: restaurant['is_active'] as bool? ?? true,
       storeStatus: storeStatus,
       totalItems: (menuStats['total_items'] as num?)?.toInt() ?? 0,
       availableItems: (menuStats['available_items'] as num?)?.toInt() ?? 0,
@@ -166,6 +171,19 @@ class DashboardViewModel extends ChangeNotifier {
   String? _errorMessage;
   bool _isToggling = false;
 
+  /// Verification state machine — sourced from /vendors/profile/
+  /// (`verification_status` top-level field, computed in
+  /// food-delivery-api/vendors/views.py:563).
+  /// Defaults to `pending` until first fetch resolves.
+  VerificationStatus _verificationStatus = VerificationStatus.pending;
+  VerificationStatus get verificationStatus => _verificationStatus;
+
+  /// True only when the vendor's KYC is approved AND their restaurant
+  /// row is `is_active=true`. Mirrors the gating used by the web
+  /// "Accepting Orders" toggle.
+  bool get canAcceptOrders =>
+      _verificationStatus.isApproved && _data.isVerified && _data.isActive;
+
   // Recent orders, pending count & unread notifications
   List<RecentOrder> _recentOrders = [];
   int _pendingCount = 0;
@@ -188,7 +206,7 @@ class DashboardViewModel extends ChangeNotifier {
   int get pendingCount => _pendingCount;
   int get unreadNotifications => _unreadNotifications;
 
-  // ── Fetch dashboard + pending + recent orders + unread count (4 parallel) ──
+  // ── Fetch dashboard + pending + recent + notifications + verification ──
   Future<void> fetchDashboard() async {
     _status = DashboardStatus.loading;
     _errorMessage = null;
@@ -207,6 +225,12 @@ class DashboardViewModel extends ChangeNotifier {
       _apiService.get(ApiEndpoints.vendorOrders)
           .then<dynamic>((r) => r).catchError((Object e) => e),
       _apiService.get(ApiEndpoints.notificationsStats)
+          .then<dynamic>((r) => r).catchError((Object e) => e),
+      // /vendors/profile/ exposes the computed `verification_status` and
+      // `is_verified` flags that gate the "Accepting Orders" toggle
+      // and feed the verification banner. The dashboard endpoint itself
+      // does NOT include the verification_status string.
+      _apiService.get(ApiEndpoints.profile)
           .then<dynamic>((r) => r).catchError((Object e) => e),
     ]);
 
@@ -279,6 +303,20 @@ class DashboardViewModel extends ChangeNotifier {
         }
       } catch (e) {
         debugPrint('[Dashboard] notifications stats parse: $e');
+      }
+    }
+
+    // ── Parse verification_status from /vendors/profile/ ────────────
+    if (results[4] is Response) {
+      try {
+        final body = (results[4] as Response).data;
+        if (body is Map<String, dynamic>) {
+          _verificationStatus = VerificationStatus.fromApi(
+            body['verification_status'] as String?,
+          );
+        }
+      } catch (e) {
+        debugPrint('[Dashboard] verification_status parse: $e');
       }
     }
 

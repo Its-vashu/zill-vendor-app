@@ -52,10 +52,10 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-    _logoScale = Tween(begin: 0.6, end: 1.0).animate(CurvedAnimation(
-      parent: _logoCtrl,
-      curve: Curves.easeOutBack,
-    ));
+    _logoScale = Tween(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _logoCtrl, curve: Curves.easeOutBack));
     _logoFade = CurvedAnimation(
       parent: _logoCtrl,
       curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
@@ -74,10 +74,10 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    _exitFade = Tween(begin: 1.0, end: 0.0).animate(CurvedAnimation(
-      parent: _exitCtrl,
-      curve: Curves.easeIn,
-    ));
+    _exitFade = Tween(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _exitCtrl, curve: Curves.easeIn));
 
     _runSequence();
   }
@@ -111,7 +111,9 @@ class _SplashScreenState extends State<SplashScreen>
     if (_navigated) return;
 
     final updateResult = await UpdateService.instance.checkForUpdate();
-    debugPrint('[Splash] Update check result: hasUpdate=${updateResult.hasUpdate} isForce=${updateResult.isForceUpdate} version=${updateResult.latestVersion}');
+    debugPrint(
+      '[Splash] Update check result: hasUpdate=${updateResult.hasUpdate} isForce=${updateResult.isForceUpdate} version=${updateResult.latestVersion}',
+    );
     if (!mounted) return;
     if (updateResult.hasUpdate) {
       debugPrint('[Splash] Showing update dialog...');
@@ -124,13 +126,19 @@ class _SplashScreenState extends State<SplashScreen>
     final authVM = context.read<AuthViewModel>();
     await authVM.checkAuthStatus();
     if (!mounted || _navigated) return;
+
+    var targetRoute = '/login';
+    if (authVM.isAuthenticated) {
+      final requiresSetup = await authVM.requiresSetupOnboarding();
+      if (!mounted || _navigated) return;
+      targetRoute = requiresSetup ? '/setup-onboarding' : '/home';
+    }
+
     _navigated = true;
 
     await _exitCtrl.forward();
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed(
-      authVM.isAuthenticated ? '/home' : '/login',
-    );
+    Navigator.of(context).pushReplacementNamed(targetRoute);
   }
 
   @override

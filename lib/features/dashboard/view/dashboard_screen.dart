@@ -13,6 +13,9 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../shared/widgets/stat_card.dart';
 import '../../../shared/widgets/shimmer_widgets.dart';
+import '../../profile/viewmodel/profile_viewmodel.dart';
+import '../../profile/widgets/complete_profile_sheet.dart';
+import '../../profile/widgets/kyc_warning_banner.dart';
 import '../viewmodel/dashboard_viewmodel.dart';
 import '../../home/view/app_shell.dart';
 import '../../orders/view/order_detail_screen.dart';
@@ -106,6 +109,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   // ── 0. Greeting header ───────────────────────────────
                   _GreetingHeader(storeName: vm.data.storeName),
                   const SizedBox(height: AppSizes.md),
+
+                  // ── 0a. Verification banner (hidden when approved) ───
+                  // Mirrors web dashboard.html updateVerificationBanner()
+                  // — 4 states: Documents Required / Verification In
+                  // Progress / Under Review / Verification Failed.
+                  if (!vm.isLoading && !vm.verificationStatus.hideBanner)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSizes.md),
+                      child: KycWarningBanner(
+                        status: vm.verificationStatus,
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRouter.kycDocuments,
+                        ),
+                      ),
+                    ),
+
+                  // ── 0b. Profile completion banner ──────────────────
+                  // Hidden once the backend reports 100%. Tap → opens
+                  // the shared "Complete your profile" bottom sheet
+                  // with a list of every missing setup task.
+                  if (!vm.isLoading && vm.data.profileCompletion < 100)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSizes.md),
+                      child: _DashboardProfileCompletionCard(
+                        percentage: vm.data.profileCompletion,
+                      ),
+                    ),
 
                   // ── 1. Premium Online/Offline Toggle ────────────────
                   vm.isLoading
@@ -413,7 +444,11 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
   @override
   Widget build(BuildContext context) {
     final vm = widget.vm;
-    final isOnline = vm.data.isStoreOpen;
+    final canAccept = vm.canAcceptOrders;
+    // When the vendor isn't allowed to accept orders, the visual state
+    // is forced to "offline" regardless of `isStoreOpen` so the toggle
+    // never appears active for an unverified account.
+    final isOnline = canAccept && vm.data.isStoreOpen;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
@@ -473,7 +508,11 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isOnline ? 'Accepting Orders' : 'Currently Offline',
+                    !canAccept
+                        ? 'Account Locked'
+                        : isOnline
+                            ? 'Accepting Orders'
+                            : 'Currently Offline',
                     style:
                         Theme.of(context).textTheme.titleLarge?.copyWith(
                               color: Colors.white,
@@ -518,7 +557,7 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
               ),
             ),
 
-            // ── Toggle switch or loading spinner ───────────
+            // ── Toggle switch / locked padlock / loading spinner ──
             if (vm.isToggling)
               const SizedBox(
                 width: 28,
@@ -528,16 +567,197 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
                   color: Colors.white,
                 ),
               )
+            else if (!canAccept)
+              GestureDetector(
+                onTap: () => _showLockedToast(context),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.lock_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              )
             else
               Switch(
                 value: isOnline,
-                onChanged: vm.isLoading || vm.isToggling ? null : (_) => vm.toggleStore(),
+                onChanged: vm.isLoading || vm.isToggling
+                    ? null
+                    : (_) => vm.toggleStore(),
                 activeThumbColor: Colors.white,
                 activeTrackColor: Colors.white.withValues(alpha: 0.4),
                 inactiveThumbColor: Colors.white,
                 inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showLockedToast(BuildContext context) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger
+      ?..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.lock_outline_rounded, color: Colors.white, size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Your account must be verified to accept orders.',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13.5),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.warning,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Dashboard Profile Completion Card
+//
+//  Tappable banner that opens the shared "Complete your profile" bottom
+//  sheet (lib/features/profile/widgets/complete_profile_sheet.dart).
+//  Shown only while the backend reports profile_completion < 100.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DashboardProfileCompletionCard extends StatelessWidget {
+  final int percentage;
+  const _DashboardProfileCompletionCard({required this.percentage});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (percentage / 100).clamp(0.0, 1.0);
+    final barColor = pct < 0.5
+        ? AppColors.warning
+        : pct < 0.8
+            ? AppColors.primary
+            : AppColors.success;
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        onTap: () {
+          // Kick the profile fetch in case the user landed on the
+          // dashboard before the profile screen ever loaded — sheet
+          // uses Consumer so it'll auto-update when fresh data arrives.
+          context.read<ProfileViewModel>().fetchProfile();
+          showCompleteProfileSheet(context);
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSizes.md),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+            border: Border.all(color: AppColors.borderLight),
+            boxShadow: const [
+              BoxShadow(
+                color: AppColors.shadowLight,
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.assignment_turned_in_rounded,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Complete your Setup',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: barColor.withAlpha(28),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$percentage%',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: barColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textHint,
+                    size: 22,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: pct,
+                  minHeight: 8,
+                  backgroundColor: AppColors.borderLight,
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Tap to see what\'s left and finish your setup.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
