@@ -361,6 +361,35 @@ class PushNotificationService {
     }
   }
 
+  /// Re-check permission + re-register token on app resume.
+  ///
+  /// Call this from the app-lifecycle observer. Handles the common
+  /// "notifications stopped working" causes:
+  ///   • user toggled the permission in system settings (Android 13+)
+  ///   • FCM rotated the token in the background
+  ///   • backend deactivated our token when another device logged in
+  ///   • the first registration at login time was eaten by a flaky network
+  Future<void> refreshRegistration() async {
+    try {
+      // Silent permission check — do NOT re-prompt the user.
+      final granted = Platform.isAndroid
+          ? (await Permission.notification.status).isGranted
+          : true;
+      if (!granted) {
+        AppLogger.i('[FCM] refreshRegistration — permission denied, skip');
+        return;
+      }
+      final token = await _messaging.getToken();
+      if (token == null || token.isEmpty) {
+        AppLogger.e('[FCM] refreshRegistration — no token');
+        return;
+      }
+      await _registerTokenWithBackend(token);
+    } catch (e) {
+      AppLogger.e('[FCM] refreshRegistration failed: $e');
+    }
+  }
+
   // ── Cleanup (on logout) ───────────────────────────────────────────
   /// Call this when the vendor logs out to stop receiving pushes.
   /// Unregisters the FCM token from backend first, then deletes locally.

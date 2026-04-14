@@ -133,11 +133,16 @@ class DashboardData {
         json['profile_completion'] as Map<String, dynamic>? ?? {};
     final todayHours = json['today_hours'] as Map<String, dynamic>? ?? {};
 
-    // Parse 3-state status — fallback to boolean for backward compat
+    // Parse 3-state status — fallback to the vendor's explicit toggle
+    // choice (`is_temporarily_closed`) rather than the computed
+    // `is_open_now` (which factors in operating hours and returns
+    // false when no hours are set — making the toggle snap back to
+    // offline even after the vendor turned it on).
     final rawStatus = restaurant['store_status'] as String?;
-    final isOpenNow = restaurant['is_open_now'] as bool? ?? false;
+    final isTempClosed =
+        restaurant['is_temporarily_closed'] as bool? ?? false;
     final storeStatus = rawStatus ??
-        (isOpenNow ? 'online' : 'offline');
+        (isTempClosed ? 'offline' : 'online');
 
     return DashboardData(
       todayOrders: (json['today_orders'] as num?)?.toInt() ?? 0,
@@ -179,10 +184,14 @@ class DashboardViewModel extends ChangeNotifier {
   VerificationStatus get verificationStatus => _verificationStatus;
 
   /// True only when the vendor's KYC is approved AND their restaurant
-  /// row is `is_active=true`. Mirrors the gating used by the web
-  /// "Accepting Orders" toggle.
+  /// row is `is_active=true`. Dropped `_data.isVerified` because it's
+  /// redundant with `isApproved` (both derive from the same backend
+  /// VendorDocument state) and creates a race condition: the dashboard
+  /// endpoint reads `restaurant.is_verified` BEFORE the profile
+  /// endpoint syncs it, causing a one-refresh lag where the banner
+  /// hides (approved) but the toggle stays locked (isVerified=false).
   bool get canAcceptOrders =>
-      _verificationStatus.isApproved && _data.isVerified && _data.isActive;
+      _verificationStatus.isApproved && _data.isActive;
 
   // Recent orders, pending count & unread notifications
   List<RecentOrder> _recentOrders = [];
@@ -323,6 +332,29 @@ class DashboardViewModel extends ChangeNotifier {
     _status = dashboardOk ? DashboardStatus.loaded : DashboardStatus.error;
     _errorMessage ??= dashboardOk ? null : 'Failed to load dashboard data.';
     notifyListeners();
+  }
+
+  // ── Lightweight unread-count refresh ───────────────────────────
+  /// Hits only `/notifications/stats/` (not the full 5-endpoint
+  /// dashboard load) so the bell-icon badge can live-update whenever
+  /// a push / websocket event tells us new activity happened. Safe to
+  /// call frequently; errors are swallowed silently.
+  Future<void> refreshNotificationCount() async {
+    try {
+      final res = await _apiService.get(ApiEndpoints.notificationsStats);
+      final body = res.data;
+      if (body is! Map<String, dynamic>) return;
+      final stats = body['stats'] as Map<String, dynamic>?;
+      final count = (stats?['unread_count'] as num?)?.toInt() ??
+          (body['unread_count'] as num?)?.toInt() ??
+          (body['unread'] as num?)?.toInt();
+      if (count != null && count != _unreadNotifications) {
+        _unreadNotifications = count;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Best-effort — next fetchDashboard() will correct any drift.
+    }
   }
 
   // ── Toggle store open/closed  POST /api/vendors/toggle-availability/ ───

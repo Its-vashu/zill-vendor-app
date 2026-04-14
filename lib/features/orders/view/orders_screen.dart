@@ -18,6 +18,7 @@ import '../../../core/services/websocket_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../viewmodel/orders_viewmodel.dart';
 import '../viewmodel/tracking_viewmodel.dart';
+import '../widgets/prep_countdown_chip.dart';
 import 'order_detail_screen.dart';
 import '../../../shared/widgets/accept_order_dialog.dart';
 
@@ -882,6 +883,18 @@ class _OrderCard extends StatelessWidget {
                                 _StatusChip(status: order.status),
                               ],
                             ),
+                            // Live MM:SS prep countdown — on its own
+                            // row so the "Overdue +MM:SS" label never
+                            // collides with the status chip. Only
+                            // renders for confirmed/preparing orders.
+                            if (order.status == 'confirmed' ||
+                                order.status == 'preparing') ...[
+                              const SizedBox(height: 6),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: PrepCountdownChip(orderId: order.id),
+                              ),
+                            ],
                             const SizedBox(height: 6),
                             // ── Type badge + customer + COD badge + call ──
                             Row(

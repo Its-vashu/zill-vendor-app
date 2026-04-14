@@ -66,12 +66,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
       pushService.onRefreshOrders = () {
         ordersVm.fetchOrders();
+        // Bell-badge on the dashboard AppBar reads the unread-count
+        // from DashboardViewModel — refresh it whenever a push event
+        // tells us something happened so the count doesn't stay
+        // stale until the vendor pulls-to-refresh.
+        dashboardVm.refreshNotificationCount();
       };
 
       // Connect WebSocket for real-time order updates
       final wsService = context.read<WebSocketService>();
       wsService.connectNotifications();
       ordersVm.listenToWebSocket(wsService.onNotification);
+      // WebSocket events ping the same bell-refresh so badges stay
+      // in sync even when push isn't granted/delivered.
+      wsService.onNotification.listen((_) {
+        dashboardVm.refreshNotificationCount();
+      });
 
       // Deep-link: notification tap → Orders tab + order detail
       pushService.onNavigateToOrder = (orderId) {
@@ -105,8 +115,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_isCheckingUpdate) {
-      // Only check once per hour — don't spam user
+    if (state != AppLifecycleState.resumed) return;
+
+    // Silently re-register the FCM token on every app resume.
+    // Handles the common "notifications stopped working" causes:
+    // user toggled permission in settings, FCM rotated the token,
+    // or the backend deactivated our token on another device.
+    try {
+      context.read<PushNotificationService>().refreshRegistration();
+    } catch (_) {
+      // Provider not ready — harmless.
+    }
+
+    if (!_isCheckingUpdate) {
+      // Only check for app updates once per hour — don't spam user
       final now = DateTime.now();
       if (_lastUpdateCheck != null &&
           now.difference(_lastUpdateCheck!).inMinutes < 60) {

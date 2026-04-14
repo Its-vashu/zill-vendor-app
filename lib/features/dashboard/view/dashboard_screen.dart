@@ -17,9 +17,11 @@ import '../../profile/viewmodel/profile_viewmodel.dart';
 import '../../profile/widgets/complete_profile_sheet.dart';
 import '../../profile/widgets/kyc_warning_banner.dart';
 import '../viewmodel/dashboard_viewmodel.dart';
+import '../widgets/notification_permission_banner.dart';
 import '../../home/view/app_shell.dart';
 import '../../orders/view/order_detail_screen.dart';
 import '../../orders/viewmodel/orders_viewmodel.dart';
+import '../../orders/widgets/prep_countdown_chip.dart';
 import '../../../shared/widgets/accept_order_dialog.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -109,6 +111,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   // ── 0. Greeting header ───────────────────────────────
                   _GreetingHeader(storeName: vm.data.storeName),
                   const SizedBox(height: AppSizes.md),
+
+                  // ── 0-pre. Notification permission (Android 13+) ────
+                  // Surfaces when the vendor has denied/revoked
+                  // POST_NOTIFICATIONS so they know WHY order alerts
+                  // aren't coming through. Tap → request / open settings.
+                  const NotificationPermissionBanner(),
 
                   // ── 0a. Verification banner (hidden when approved) ───
                   // Mirrors web dashboard.html updateVerificationBanner()
@@ -444,11 +452,7 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
   @override
   Widget build(BuildContext context) {
     final vm = widget.vm;
-    final canAccept = vm.canAcceptOrders;
-    // When the vendor isn't allowed to accept orders, the visual state
-    // is forced to "offline" regardless of `isStoreOpen` so the toggle
-    // never appears active for an unverified account.
-    final isOnline = canAccept && vm.data.isStoreOpen;
+    final isOnline = vm.data.isStoreOpen;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
@@ -508,11 +512,7 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    !canAccept
-                        ? 'Account Locked'
-                        : isOnline
-                            ? 'Accepting Orders'
-                            : 'Currently Offline',
+                    isOnline ? 'Accepting Orders' : 'Currently Offline',
                     style:
                         Theme.of(context).textTheme.titleLarge?.copyWith(
                               color: Colors.white,
@@ -557,7 +557,7 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
               ),
             ),
 
-            // ── Toggle switch / locked padlock / loading spinner ──
+            // ── Toggle switch or loading spinner ──────────
             if (vm.isToggling)
               const SizedBox(
                 width: 28,
@@ -565,27 +565,6 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
                   color: Colors.white,
-                ),
-              )
-            else if (!canAccept)
-              GestureDetector(
-                onTap: () => _showLockedToast(context),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.4),
-                      width: 1,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.lock_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
                 ),
               )
             else
@@ -605,34 +584,6 @@ class _StoreToggleCardState extends State<_StoreToggleCard>
     );
   }
 
-  void _showLockedToast(BuildContext context) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.lock_outline_rounded, color: Colors.white, size: 18),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Your account must be verified to accept orders.',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13.5),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppColors.warning,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -946,30 +897,43 @@ class _LiveOrderCard extends StatelessWidget {
                   topRight: Radius.circular(AppSizes.radiusMd),
                 ),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(_statusIcon(order.status), size: 16, color: statusColor),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      'ID: ${order.id}  ${order.orderNumber}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: statusColor,
+                  Row(
+                    children: [
+                      Icon(_statusIcon(order.status),
+                          size: 16, color: statusColor),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'ID: ${order.id}  ${order.orderNumber}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: statusColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const Spacer(),
+                      Text(
+                        timeStr,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  Text(
-                    timeStr,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
+                  // Countdown on its own line — prevents "Overdue +MM:SS"
+                  // from squeezing the order number out of the header.
+                  if (order.status == 'confirmed' ||
+                      order.status == 'preparing') ...[
+                    const SizedBox(height: 6),
+                    PrepCountdownChip(orderId: order.id),
+                  ],
                 ],
               ),
             ),

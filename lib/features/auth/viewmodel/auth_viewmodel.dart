@@ -11,6 +11,7 @@ import '../../../core/services/storage_service.dart';
 import '../../../core/services/websocket_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../kyc/services/setup_onboarding_service.dart';
+import '../../orders/services/order_timer_store.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
@@ -114,6 +115,10 @@ class AuthViewModel extends ChangeNotifier {
       // don't trigger a spurious _clearAndLogout() while the user is on login.
       _apiService.signalLoggingOut();
       await _storageService.clearAll();
+      // Drop every prep-time countdown — they belong to the
+      // logged-out vendor's orders and must not leak into the
+      // next session.
+      await OrderTimerStore.instance.clearAll();
       _username = null;
       _status = AuthStatus.unauthenticated;
       notifyListeners();

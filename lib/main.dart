@@ -24,6 +24,7 @@ import 'core/theme/app_theme.dart';
 import 'core/utils/app_logger.dart';
 import 'features/auth/viewmodel/auth_viewmodel.dart';
 import 'features/dashboard/viewmodel/dashboard_viewmodel.dart';
+import 'features/orders/services/order_timer_store.dart';
 import 'features/orders/viewmodel/orders_viewmodel.dart';
 import 'features/menu/viewmodel/menu_viewmodel.dart';
 import 'features/profile/viewmodel/profile_viewmodel.dart';
@@ -116,6 +117,11 @@ void main() {
           statusBarIconBrightness: Brightness.dark,
         ),
       );
+
+      // Warm the prep-countdown cache so order-card timers render on
+      // their first frame without a loading flicker. Safe on cold
+      // start — just a single SharedPreferences read.
+      unawaited(OrderTimerStore.instance.preload());
 
       // Initialize services
       final storageService = StorageService();

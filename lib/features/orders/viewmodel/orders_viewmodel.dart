@@ -10,6 +10,7 @@ import 'package:flutter/material.dart' show DateTimeRange;
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/utils/app_logger.dart';
+import '../services/order_timer_store.dart';
 
 // ── Addon Item ────────────────────────────────────────────────────────
 class OrderAddonItem {
@@ -572,6 +573,10 @@ class OrdersViewModel extends ChangeNotifier {
         } else {
           _newOrders.insert(0, order);
         }
+        // Anchor the prep-time countdown starting NOW. Persisted so
+        // the MM:SS timer on the order card survives app restart.
+        OrderTimerStore.instance
+            .setDeadline(orderId, estimatedPrepTime);
       },
     );
   }
@@ -590,12 +595,14 @@ class OrdersViewModel extends ChangeNotifier {
       ),
       onSuccess: (_) {
         _newOrders.removeWhere((o) => o.id == orderId);
+        OrderTimerStore.instance.clear(orderId);
       },
     );
   }
 
   // ── Start Preparing (confirmed → preparing) ────────────────────
-  Future<bool> startPreparing(int orderId) async {
+  Future<bool> startPreparing(int orderId,
+      {int? restartPrepMinutes}) async {
     return _doAction(
       orderId: orderId,
       call: () => _api.post(
@@ -606,6 +613,14 @@ class OrdersViewModel extends ChangeNotifier {
         // Moves from New tab → Preparing tab
         _newOrders.removeWhere((o) => o.id == orderId);
         _preparingOrders.insert(0, order);
+        // Optionally restart the countdown from "now + N" when the
+        // caller passes a new prep duration (used by the Preparing
+        // action button so the timer reflects actual kitchen start
+        // rather than the accept time).
+        if (restartPrepMinutes != null && restartPrepMinutes > 0) {
+          OrderTimerStore.instance
+              .setDeadline(orderId, restartPrepMinutes);
+        }
       },
     );
   }
@@ -621,6 +636,8 @@ class OrdersViewModel extends ChangeNotifier {
       onSuccess: (order) {
         _preparingOrders.removeWhere((o) => o.id == orderId);
         _readyOrders.insert(0, order);
+        // Dish is done — drop the countdown.
+        OrderTimerStore.instance.clear(orderId);
       },
     );
   }
